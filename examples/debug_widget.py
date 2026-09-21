@@ -7,7 +7,7 @@ method's locals, and toggles the window with F12. Run it with
 
 from imgui_bundle import hello_imgui, imgui, immapp
 
-from imgui_debugger import Theme, attach
+from imgui_debugger import Hotkey, attach
 
 
 class RoiWidget:
@@ -24,7 +24,10 @@ class RoiWidget:
         self.selected = []
         self.metadata = {"fs": 9.6, "planes": [1, 2, 3], "si": {"version": 2023}}
         self._frames = 0
-        self.debugger = attach(self, title="ROIs widget", value_col=200.0)
+        self.debugger = attach(
+            self, title="ROIs widget", value_col=200.0,
+            hotkey=Hotkey(imgui.Key.f12),
+        )
 
     @property
     def engine_name(self) -> str:
@@ -47,19 +50,18 @@ class RoiWidget:
             self.selected.clear()
         imgui.text_disabled(f"{rows_this_frame} selected, frame {self._frames}")
 
-        if imgui.is_key_pressed(imgui.Key.f12):
-            self.debugger.toggle()
-        # capture here so the tree's locals scope follows this method
+        # capture here so the tree's locals scope follows this method;
+        # render_window polls the hotkey, so F12 reopens it when closed
         self.debugger.capture()
         self.debugger.render_window()
 
 
 WIDGET = RoiWidget()
-CONFIG = dict(window_title="debug_widget", theme=Theme.dark())
+WINDOW_TITLE = "debug_widget"
 
 if __name__ == "__main__":
     params = hello_imgui.RunnerParams()
-    params.app_window_params.window_title = CONFIG["window_title"]
+    params.app_window_params.window_title = WINDOW_TITLE
     params.app_window_params.window_geometry.size = (900, 700)
     params.callbacks.show_gui = WIDGET.draw
     immapp.run(runner_params=params)

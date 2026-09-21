@@ -28,7 +28,18 @@ from ._assets import data_dir, default_ini_path, ensure_assets
 from .debugger import Debugger, DebuggerConfig, attach, watch_all
 from .edit import can_edit, edit_value
 from .format import fmt_value, type_label
-from .runner import run_debugger
+from .native import (
+    AboutPanel,
+    DebugLogPanel,
+    DemoPanel,
+    IdStackPanel,
+    MetricsPanel,
+    NativePanelConfig,
+    NativeWindowPanel,
+    UserGuidePanel,
+)
+from .panel import Hotkey, Panel, PanelConfig
+from .runner import run_debugger, run_panel
 from .scopes import (
     Child,
     Scope,
@@ -52,17 +63,24 @@ from .style import (
     style_to_dict,
 )
 from .theme import Theme, to_vec4
+from .tools import DebugTools
 from .tree import TreeStyle, draw_child, draw_children, draw_scope
 
 __version__ = "0.1.0"
 
 __all__ = [
+    # panels
+    "Panel",
+    "PanelConfig",
+    "Hotkey",
+    "DebugTools",
     # widget + harness
     "Debugger",
     "DebuggerConfig",
     "attach",
     "watch_all",
     "run_debugger",
+    "run_panel",
     "ensure_assets",
     "data_dir",
     "default_ini_path",
@@ -97,6 +115,15 @@ __all__ = [
     "save_style",
     "load_style",
     "default_style_path",
+    # imgui's own debug windows
+    "MetricsPanel",
+    "DebugLogPanel",
+    "IdStackPanel",
+    "AboutPanel",
+    "DemoPanel",
+    "UserGuidePanel",
+    "NativeWindowPanel",
+    "NativePanelConfig",
     # theme
     "Theme",
     "to_vec4",

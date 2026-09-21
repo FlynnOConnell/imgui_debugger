@@ -11,11 +11,14 @@ MODULES = [
     "imgui_debugger.debugger",
     "imgui_debugger.edit",
     "imgui_debugger.format",
+    "imgui_debugger.native",
+    "imgui_debugger.panel",
     "imgui_debugger.runner",
     "imgui_debugger.scopes",
     "imgui_debugger.search",
     "imgui_debugger.style",
     "imgui_debugger.theme",
+    "imgui_debugger.tools",
     "imgui_debugger.tree",
 ]
 

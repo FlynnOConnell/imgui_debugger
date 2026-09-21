@@ -182,3 +182,83 @@ def _remember_save(data):
 def _replay_save():
     """Load hook: hand back whatever the save hook kept."""
     return STYLE_STATE["saved"]
+
+
+TOOLS_STATE = {"frames": 0, "tools": None}
+
+
+def _tools_gui():
+    """Draw the whole tool set: menu entries plus every open panel's window."""
+    from imgui_bundle import hello_imgui, imgui
+
+    tools = TOOLS_STATE["tools"]
+    TOOLS_STATE["frames"] += 1
+    if imgui.begin_main_menu_bar():
+        tools.draw_menu()
+        imgui.end_main_menu_bar()
+    tools.render()
+    if TOOLS_STATE["frames"] == 2:
+        tools.hide_all()
+    if TOOLS_STATE["frames"] >= 4:
+        hello_imgui.get_runner_params().app_shall_exit = True
+
+
+def test_headless_tools_render():
+    from imgui_bundle import hello_imgui
+
+    from imgui_debugger import DebugTools, DemoPanel, UserGuidePanel
+
+    ensure_assets()
+    tools = DebugTools.default(Widget(), menu_label="Debug")
+    tools.add(DemoPanel())
+    tools.add(UserGuidePanel())
+    tools.show_all()
+
+    TOOLS_STATE["frames"] = 0
+    TOOLS_STATE["tools"] = tools
+    params = _null_runner_params()
+    params.callbacks.show_gui = _tools_gui
+    try:
+        hello_imgui.run(params)
+    except Exception as exc:
+        pytest.skip(f"null backend unavailable: {exc}")
+
+    assert TOOLS_STATE["frames"] >= 4
+    assert not any(tools.visible().values())
+
+
+HOTKEY_STATE = {"frames": 0, "panel": None}
+
+
+def _hotkey_gui():
+    """Press the panel's hotkey through the IO queue and watch it toggle."""
+    from imgui_bundle import hello_imgui, imgui
+
+    panel = HOTKEY_STATE["panel"]
+    HOTKEY_STATE["frames"] += 1
+    if HOTKEY_STATE["frames"] == 2:
+        imgui.get_io().add_key_event(imgui.Key.f12, True)
+    panel.render_window()
+    if HOTKEY_STATE["frames"] >= 4:
+        hello_imgui.get_runner_params().app_shall_exit = True
+
+
+def test_headless_hotkey_toggles_a_panel():
+    from imgui_bundle import hello_imgui, imgui
+
+    from imgui_debugger import Hotkey, StyleEditor, StyleEditorConfig
+
+    ensure_assets()
+    panel = StyleEditor(
+        StyleEditorConfig(visible=False, hotkey=Hotkey(imgui.Key.f12))
+    )
+    HOTKEY_STATE["frames"] = 0
+    HOTKEY_STATE["panel"] = panel
+    params = _null_runner_params()
+    params.callbacks.show_gui = _hotkey_gui
+    try:
+        hello_imgui.run(params)
+    except Exception as exc:
+        pytest.skip(f"null backend unavailable: {exc}")
+
+    assert panel.visible

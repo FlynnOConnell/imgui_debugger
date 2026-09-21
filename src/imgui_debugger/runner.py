@@ -64,7 +64,7 @@ def run_debugger(
     dbg = Debugger(cfg, frame_depth=2)
 
     params = runner_params if runner_params is not None else hello_imgui.RunnerParams()
-    params.app_window_params.window_title = cfg.window_title or cfg.title or "Debugger"
+    params.app_window_params.window_title = cfg.os_window_title or cfg.title or "Debugger"
     if cfg.window_size:
         params.app_window_params.window_geometry.size = tuple(cfg.window_size)
         params.app_window_params.window_geometry.size_auto = False
@@ -89,3 +89,69 @@ def run_debugger(
     addons.with_implot3d = False
     immapp.run(runner_params=params, add_ons_params=addons)
     return dbg
+
+
+def run_panel(
+    panel,
+    window_title: str = "",
+    window_size=(640, 780),
+    ini_path: Optional[str] = None,
+    assets_folder: Optional[str] = None,
+    runner_params=None,
+):
+    """Open any panel in its own OS window, blocking until it is closed.
+
+    The panel is drawn with :meth:`~imgui_debugger.panel.Panel.render` filling
+    the window, so a native panel that owns its own window is drawn with
+    ``render_window`` instead.
+
+    Parameters
+    ----------
+    panel : Panel
+        The panel to show.
+    window_title : str
+        OS window title; the panel's title when empty.
+    window_size : tuple[int, int]
+        OS window size.
+    ini_path : str | None
+        Where hello_imgui saves the layout.
+    assets_folder : str | None
+        Folder providing the icon font.
+    runner_params : hello_imgui.RunnerParams | None
+        Supply your own params, e.g. a null backend for headless tests.
+
+    Returns
+    -------
+    Panel
+        The same panel, so its final state can be read back.
+
+    Examples
+    --------
+    >>> from imgui_debugger import StyleEditor, run_panel
+    >>> run_panel(StyleEditor())                  # doctest: +SKIP
+    >>> from imgui_debugger import MetricsPanel
+    >>> run_panel(MetricsPanel())                 # doctest: +SKIP
+    """
+    from imgui_bundle import hello_imgui, immapp
+
+    from .panel import Panel
+
+    ensure_assets(assets_folder)
+    params = runner_params if runner_params is not None else hello_imgui.RunnerParams()
+    params.app_window_params.window_title = window_title or panel.title
+    params.app_window_params.window_geometry.size = tuple(window_size)
+    params.app_window_params.window_geometry.size_auto = False
+    if not params.ini_filename:
+        ini = ini_path or default_ini_path("panel")
+        params.ini_filename = ini
+        if os.path.isabs(ini):
+            params.ini_folder_type = hello_imgui.IniFolderType.absolute_path
+            parent = os.path.dirname(ini)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+    params.imgui_window_params.background_color = to_vec4(panel.theme.bg)
+    inline = type(panel).render is not Panel.render
+    panel.show()
+    params.callbacks.show_gui = panel.render if inline else panel.render_window
+    immapp.run(runner_params=params, add_ons_params=immapp.AddOnsParams())
+    return panel

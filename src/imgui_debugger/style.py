@@ -17,14 +17,15 @@ Examples
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, Optional, Tuple, Union
 
 from imgui_bundle import imgui
 
 from ._assets import data_dir
-from .theme import Theme, to_vec4
+from .panel import Panel, PanelConfig
+from .theme import to_vec4
 
 # derived from the DPI and the font atlas at runtime; restoring them from a file
 # written on another machine resizes every font for the wrong screen
@@ -284,13 +285,11 @@ def load_style(path: Union[str, Path, None] = None, style=None) -> int:
 
 
 @dataclass
-class StyleEditorConfig:
+class StyleEditorConfig(PanelConfig):
     """What the style editor shows and where its two buttons go.
 
     Parameters
     ----------
-    title : str
-        Window title and menu label.
     on_save : callable | None
         ``on_save(data)`` with the serialized style; falls back to writing
         ``path`` as JSON.
@@ -301,15 +300,22 @@ class StyleEditorConfig:
         File used by the fallback Save / Load.
     save_label, load_label : str
         Button text.
-    theme : Theme
-        Palette for the status line and headers.
     show_presets : bool
         Show the dark / light / classic buttons.
     show_revert : bool
         Show a Revert button restoring the style as it was when the editor was
         constructed.
-    window_size : tuple[int, int]
-        Initial window size.
+    show_sizes, show_colors, show_rendering : bool
+        Which tabs to draw; a single tab is drawn without the tab bar.
+    show_font_selector, show_style_selector : bool
+        Draw imgui's font and built-in-style pickers above the tabs.
+    size_groups : tuple
+        ``((group name, ((field, lo, hi), ...)), ...)`` driving the Sizes tab;
+        :data:`SIZE_GROUPS` when None.
+    extra_draw : callable | None
+        ``extra_draw(editor)`` drawn under the toolbar, for your own controls.
+
+    Every :class:`~imgui_debugger.panel.PanelConfig` field is also accepted.
 
     Examples
     --------
@@ -320,18 +326,24 @@ class StyleEditorConfig:
     """
 
     title: str = "Style Editor"
+    window_size: Tuple[int, int] = (560, 640)
     on_save: Optional[Callable[[dict], None]] = None
     on_load: Optional[Callable[[], Optional[dict]]] = None
     path: Optional[Union[str, Path]] = None
     save_label: str = "Save"
     load_label: str = "Load"
-    theme: Theme = field(default_factory=Theme.dark)
     show_presets: bool = True
     show_revert: bool = True
-    window_size: tuple = (560, 640)
+    show_sizes: bool = True
+    show_colors: bool = True
+    show_rendering: bool = True
+    show_font_selector: bool = False
+    show_style_selector: bool = False
+    size_groups: Optional[tuple] = None
+    extra_draw: Optional[Callable[["StyleEditor"], None]] = None
 
 
-class StyleEditor:
+class StyleEditor(Panel):
     """The imgui style editor with Save and Load wired to your own callbacks.
 
     Parameters
@@ -353,24 +365,13 @@ class StyleEditor:
     >>> editor.render_window()           # doctest: +SKIP
     """
 
+    config_class = StyleEditorConfig
+
     def __init__(self, config: Optional[StyleEditorConfig] = None):
-        self.config = config or StyleEditorConfig()
-        self.visible = True
+        super().__init__(config or StyleEditorConfig())
         self.filter = ""
         self.status = ""
         self._ref: Optional[dict] = None
-
-    @property
-    def theme(self) -> Theme:
-        """The palette used for headers and the status line.
-
-        Examples
-        --------
-        >>> from imgui_debugger import StyleEditor
-        >>> StyleEditor().theme.frame_rounding
-        4.0
-        """
-        return self.config.theme
 
     def capture_ref(self) -> None:
         """Snapshot the current style as the one Revert goes back to.
@@ -438,76 +439,6 @@ class StyleEditor:
             apply_style_dict(self._ref)
             self.status = "reverted"
 
-    def toggle(self) -> None:
-        """Flip :attr:`visible`.
-
-        Examples
-        --------
-        >>> from imgui_debugger import StyleEditor
-        >>> e = StyleEditor()
-        >>> e.toggle()
-        >>> e.visible
-        False
-        """
-        self.visible = not self.visible
-
-    def menu_item(self, label: str = "", shortcut: str = "") -> bool:
-        """Draw a checked menu entry that toggles the window, inside your menu.
-
-        Parameters
-        ----------
-        label : str
-            Entry text; the config title when empty.
-        shortcut : str
-            Shortcut text shown on the right.
-
-        Returns
-        -------
-        bool
-            True on the frame the entry was clicked.
-
-        Examples
-        --------
-        >>> from imgui_debugger import StyleEditor
-        >>> editor = StyleEditor()
-        >>> editor.menu_item("Style Editor", "Ctrl+,")   # doctest: +SKIP
-        False
-        """
-        clicked, self.visible = imgui.menu_item(
-            label or self.config.title, shortcut, self.visible
-        )
-        return clicked
-
-    def render_window(self, flags: int = 0) -> bool:
-        """Draw the editor in its own window, honoring :attr:`visible`.
-
-        Parameters
-        ----------
-        flags : int
-            Extra ``imgui.WindowFlags_`` bits.
-
-        Returns
-        -------
-        bool
-            True when the window body was drawn this frame.
-
-        Examples
-        --------
-        >>> from imgui_debugger import StyleEditor
-        >>> StyleEditor().render_window()     # doctest: +SKIP
-        True
-        """
-        if not self.visible:
-            return False
-        imgui.set_next_window_size(imgui.ImVec2(*self.config.window_size), imgui.Cond_.first_use_ever)
-        expanded, self.visible = imgui.begin(
-            f"{self.config.title}##imgui_debugger_style", True, flags
-        )
-        if expanded:
-            self.render()
-        imgui.end()
-        return expanded
-
     def render(self) -> None:
         """Draw the toolbar and the Sizes / Colors / Rendering tabs inline.
 
@@ -516,19 +447,30 @@ class StyleEditor:
         >>> from imgui_debugger import StyleEditor
         >>> StyleEditor().render()            # doctest: +SKIP
         """
+        cfg = self.config
         if self._ref is None:
             self.capture_ref()
         self.draw_toolbar()
-        if imgui.begin_tab_bar("##style_tabs"):
-            if imgui.begin_tab_item("Sizes")[0]:
-                self.draw_sizes()
-                imgui.end_tab_item()
-            if imgui.begin_tab_item("Colors")[0]:
-                self.draw_colors()
-                imgui.end_tab_item()
-            if imgui.begin_tab_item("Rendering")[0]:
-                self.draw_rendering()
-                imgui.end_tab_item()
+        if cfg.show_font_selector:
+            imgui.show_font_selector("Font")
+        if cfg.show_style_selector and imgui.show_style_selector("Built-in style"):
+            self.status = "applied a built-in style"
+        if cfg.extra_draw is not None:
+            cfg.extra_draw(self)
+        tabs = [
+            ("Sizes", cfg.show_sizes, self.draw_sizes),
+            ("Colors", cfg.show_colors, self.draw_colors),
+            ("Rendering", cfg.show_rendering, self.draw_rendering),
+        ]
+        shown = [(name, draw) for name, on, draw in tabs if on]
+        if len(shown) == 1:
+            shown[0][1]()
+            return
+        if shown and imgui.begin_tab_bar("##style_tabs"):
+            for name, draw in shown:
+                if imgui.begin_tab_item(name)[0]:
+                    draw()
+                    imgui.end_tab_item()
             imgui.end_tab_bar()
 
     def draw_toolbar(self) -> None:
@@ -570,7 +512,7 @@ class StyleEditor:
         >>> StyleEditor().draw_sizes()        # doctest: +SKIP
         """
         style = imgui.get_style()
-        for group, fields in SIZE_GROUPS:
+        for group, fields in self.config.size_groups or SIZE_GROUPS:
             imgui.text_colored(to_vec4(self.theme.node), group)
             imgui.separator()
             for name, lo, hi in fields:

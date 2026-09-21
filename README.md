@@ -8,12 +8,13 @@
 
 <samp>
 <p align="center">
-A live <b>variable inspector</b> for any imgui-bundle widget
+Standalone, configurable <b>debug panels</b> for imgui-bundle apps
 <br>
 <br>
 <a href="#install">install</a> ·
-<a href="#quick-start">quick start</a> ·
-<a href="#scopes">scopes</a> ·
+<a href="#the-panels">panels</a> ·
+<a href="#one-menu-for-everything">one menu</a> ·
+<a href="#variable-inspector">inspector</a> ·
 <a href="#style-editor">style editor</a> ·
 <a href="#examples">examples</a> ·
 <a href="#configuration-reference">configuration</a> ·
@@ -22,6 +23,130 @@ A live <b>variable inspector</b> for any imgui-bundle widget
 </samp>
 
 ## About
+
+Every debugging tool imgui offers normally hangs off the demo window's Tools
+menu. This package unbundles them: each tool is an independent, configurable
+panel you can drop into your own app, on your own menu, with your own
+shortcuts — plus a live variable inspector and a style editor whose Save and
+Load are yours.
+
+Nothing here needs the demo window, and nothing here depends on anything else
+here: import one panel, or take the whole set.
+
+| panel | what it shows | comes from |
+|-------|---------------|------------|
+| `Debugger` | every variable your widget can see, by scope, live | this package |
+| `StyleEditor` | sizes, colors, rendering, with pluggable Save / Load | this package |
+| `MetricsPanel` | windows, draw lists, viewports, internal state | imgui |
+| `DebugLogPanel` | focus, nav, docking and IO events as they happen | imgui |
+| `IdStackPanel` | what an item's id is built from, for id collisions | imgui |
+| `AboutPanel` | version and the build's enabled features | imgui |
+| `UserGuidePanel` | imgui's built-in control reference | imgui |
+| `DemoPanel` | the demo window, if you ever want it — opt-in only | imgui |
+
+Built for widgets like the ones in
+[mbo_utilities](https://github.com/MillerBrainObservatory/mbo_utilities) and
+[masknmf-toolbox](https://github.com/apasarkar/masknmf-toolbox), but it knows
+nothing about them — a target is any Python object.
+
+## Install
+
+```bash
+pip install imgui_debugger
+```
+
+The only dependency is `imgui-bundle` (which provides imgui, hello_imgui,
+immapp and the FontAwesome icon font).
+
+## The panels
+
+Every panel — including ones you write — has the same four-part surface:
+
+```python
+panel.visible                  # bool you can set, bind, or persist
+panel.menu_item()              # a checked menu entry bound to visible
+panel.render()                 # the body, at the current cursor, no window
+panel.render_window()          # the body in its own window; polls the hotkey
+```
+
+so wiring one into a host app is two lines:
+
+```python
+def draw_menu(self):
+    if imgui.begin_menu("View"):
+        self.editor.menu_item()       # or menu_item("Theme", "Ctrl+T")
+        imgui.end_menu()
+
+def draw(self):
+    ...
+    self.editor.render_window()
+```
+
+`render()` is there for when you would rather host the body yourself — in a tab,
+a dock node, or a sidebar you already own. imgui's own windows (`MetricsPanel`
+and friends) are window-only and say so by raising from `render()`.
+
+Configuration is a dataclass per panel, all sharing `PanelConfig`:
+
+```python
+from imgui_bundle import imgui
+from imgui_debugger import Hotkey, StyleEditor, StyleEditorConfig
+
+editor = StyleEditor(StyleEditorConfig(
+    title="Theme",                          # window title + menu label
+    visible=False,                          # starts closed
+    hotkey=Hotkey(imgui.Key.t, ctrl=True),  # Ctrl+T toggles it; the menu says so
+    window_size=(520, 700),
+    show_sizes=False,                       # StyleEditor's own knobs
+    on_save=my_app.save_style,
+))
+```
+
+To show one on its own, with no host app at all:
+
+```python
+from imgui_debugger import run_panel
+run_panel(StyleEditor())
+run_panel(MetricsPanel())
+```
+
+Writing your own panel is a subclass and a `render`:
+
+```python
+from imgui_debugger import Panel, PanelConfig
+
+class Timings(Panel):
+    config_class = PanelConfig
+
+    def render(self):
+        imgui.text(f"{imgui.get_io().framerate:.0f} fps")
+```
+
+## One menu for everything
+
+`DebugTools` is an ordered set of panels with one menu and one per-frame call:
+
+```python
+from imgui_debugger import DebugTools, Hotkey
+
+self.tools = DebugTools.default(self, menu_label="Debug")
+self.tools["Debugger"].config.hotkey = Hotkey(imgui.Key.f12)
+
+def draw_menu(self):
+    self.tools.draw_menu()        # or draw_menu_items() inside your own menu
+
+def draw(self):
+    ...
+    self.tools.render()           # every open panel, every hotkey
+```
+
+`DebugTools.default()` gives the inspector, the style editor, metrics, the debug
+log and the ID stack tool, all starting closed. The demo window is deliberately
+left out. The set is editable — `add`, `remove`, `tools["title"]`, `show_all`,
+`hide_all`, `visible()` — so you can swap the style editor for one configured
+your way, or register a panel of your own beside them.
+
+## Variable inspector
 
 Point it at a widget and it draws every variable that widget can see, grouped by
 scope, in a collapsible tree that re-reads its values every frame:
@@ -37,34 +162,7 @@ scope, in a collapsible tree that re-reads its values every frame:
 - **watches** — anything else you promote to a top-level scope
 
 Leaves that are a bool, number, string or color tuple get an inline editor that
-writes straight back onto the object, so you can find the value that fixes the
-layout without restarting the app.
-
-It is built for widgets like the ones in
-[mbo_utilities](https://github.com/MillerBrainObservatory/mbo_utilities) and
-[masknmf-toolbox](https://github.com/apasarkar/masknmf-toolbox), but it knows
-nothing about them — it works on any Python object.
-
-## Install
-
-```bash
-pip install imgui_debugger
-```
-
-The only dependency is `imgui-bundle` (which provides imgui, hello_imgui,
-immapp and the FontAwesome icon font).
-
-## Quick start
-
-Inspect one object in its own window, no host app needed:
-
-```python
-from imgui_debugger import run_debugger
-
-run_debugger({"fs": 9.6, "dz": 5.0, "planes": [1, 2, 3]})
-```
-
-Add a debug window to a widget you already have:
+writes straight back onto the object.
 
 ```python
 from imgui_debugger import attach
@@ -77,17 +175,17 @@ class RoiWidget:
     def update(self):          # your per-frame draw
         ...
         self.debugger.capture()        # follow this method's locals
-        self.debugger.render_window()  # draw the debug window
+        self.debugger.render_window()
 ```
 
-Or draw the tree inline, in a panel you already own:
+Or inspect one object with no host app:
 
 ```python
-self.debugger.render()     # toolbar + tree at the current cursor
-self.debugger.draw_tree()  # tree only, no toolbar
+from imgui_debugger import run_debugger
+run_debugger({"fs": 9.6, "dz": 5.0, "planes": [1, 2, 3]})
 ```
 
-## Scopes
+### Scopes
 
 `Debugger.scopes()` returns them in display order: the target's
 `instance` / `properties` / `class`, then your watches, then `locals` /
@@ -104,8 +202,7 @@ self.debugger.draw_tree()  # tree only, no toolbar
 | watches | `watch(name, value_or_callable)` | depends on the value |
 
 A watch takes a value or a zero-argument callable; the callable is re-read every
-frame, so `watch("metadata", lambda: self.metadata)` survives the attribute
-being reassigned:
+frame, so it survives the attribute being reassigned:
 
 ```python
 dbg.watch("metadata", lambda: self.metadata, role="prop")
@@ -115,41 +212,34 @@ dbg.watch("fps", lambda: {"now": imgui.get_io().framerate}, role="runtime")
 `watch_all(obj, ["metadata", "indices"])` does the same for several attributes
 in one call.
 
+### Toolbar
+
+| control | what it does |
+|---------|--------------|
+| filter | case-insensitive match over names and leaf values, recursing into children (bounded to 6 levels and 64 items per container, memoized per filter string) |
+| expand / collapse | force every node open or shut for one frame |
+| private | include `_name` attributes |
+| edit | turn the inline editors off and read only |
+
 ## Style editor
 
 `StyleEditor` is the imgui demo's style editor with its Save Ref / Revert Ref /
-Export buttons replaced by two of yours. It is independent of the debugger —
-import it on its own.
+Export buttons replaced by two of yours. `imgui.show_style_editor()` cannot be
+drawn without those buttons, and they only manage an in-memory reference style —
+nothing they do touches disk — so this draws the tabs itself.
 
 ```python
 from imgui_debugger import StyleEditor, StyleEditorConfig
 
 editor = StyleEditor(StyleEditorConfig(
-    title="Style",
+    title="Theme",
+    visible=False,
     save_label="Save to settings",
     load_label="Load from settings",
     on_save=my_app.save_style,   # on_save(data: dict)
     on_load=my_app.load_style,   # on_load() -> dict | None
 ))
-editor.visible = False
 ```
-
-Then two calls per frame — one in your menu, one anywhere in the frame:
-
-```python
-def draw_menu(self):
-    if imgui.begin_menu("View"):
-        self.editor.menu_item("Style Editor", "Ctrl+,")
-        imgui.end_menu()
-
-def draw(self):
-    ...
-    self.editor.render_window()
-```
-
-`menu_item` draws a checked entry bound to `visible`, so the menu shows whether
-the window is open and clicking it toggles. `render()` draws the body inline if
-you would rather host it in a panel you already own.
 
 With no `on_save` / `on_load`, the buttons fall back to reading and writing
 `config.path` as JSON (`~/.imgui_debugger/style.json` when that is unset too).
@@ -157,10 +247,12 @@ With no `on_save` / `on_load`, the buttons fall back to reading and writing
 user dismissed reports back. Errors from either hook land on the editor's status
 line instead of raising inside a frame.
 
-The tabs are the demo's: **Sizes** (grouped sliders), **Colors** (all 63, with a
-filter box and an alpha bar) and **Rendering**. Presets apply
-`style_colors_dark` / `_light` / `_classic`, and Revert restores the style as it
-was when the editor was constructed.
+The body is configurable: `show_sizes`, `show_colors` and `show_rendering` pick
+the tabs (one tab alone is drawn without a tab bar), `show_font_selector` and
+`show_style_selector` add imgui's own pickers, `size_groups` replaces the Sizes
+tab's fields entirely, and `extra_draw(editor)` slots your own controls under the
+toolbar. Presets apply `style_colors_dark` / `_light` / `_classic`; Revert
+restores the style as it was when the editor was constructed.
 
 The serialization is usable on its own:
 
@@ -177,15 +269,6 @@ deliberately not serialized: `font_scale_dpi` and `font_size_base` are derived
 from the screen at runtime, and restoring another machine's values resizes every
 font for the wrong display.
 
-## Toolbar
-
-| control | what it does |
-|---------|--------------|
-| filter | case-insensitive match over names and leaf values, recursing into children (bounded to 6 levels and 64 items per container, memoized per filter string) |
-| expand / collapse | force every node open or shut for one frame |
-| private | include `_name` attributes |
-| edit | turn the inline editors off and read only |
-
 ## Examples
 
 See all examples in [`examples/`](examples/).
@@ -193,19 +276,33 @@ See all examples in [`examples/`](examples/).
 | name | file | what it shows |
 |------|------|---------------|
 | debug_minimal | [`debug_minimal.py`](examples/debug_minimal.py) | one-shot window over a settings dataclass |
-| debug_widget | [`debug_widget.py`](examples/debug_widget.py) | a widget that owns its debugger, captures its own locals, and toggles it with F12 |
+| debug_widget | [`debug_widget.py`](examples/debug_widget.py) | a widget that owns its inspector, captures its own locals, and toggles it with F12 |
 | debug_edge_window | [`debug_edge_window.py`](examples/debug_edge_window.py) | a fastplotlib `EdgeWindow`, the widget shape pml_utilities and masknmf-toolbox use |
-| style_editor_menu | [`style_editor_menu.py`](examples/style_editor_menu.py) | the style editor behind a menu item, saving into the host app's own settings file |
+| style_editor_menu | [`style_editor_menu.py`](examples/style_editor_menu.py) | the style editor alone, on a menu, saving into the app's own settings file |
+| debug_tools_menu | [`debug_tools_menu.py`](examples/debug_tools_menu.py) | the whole set behind one menu, with hotkeys and a replaced style editor |
 
 ## Configuration reference
 
-`DebuggerConfig` fields:
+### `PanelConfig` — every panel takes these
+
+| field | default | purpose |
+|-------|---------|---------|
+| `title` | per panel | window title and default menu label |
+| `visible` | `True` | whether it starts open |
+| `window_id` | `""` | stable imgui id suffix; the class name when empty, so renaming the title keeps the saved layout |
+| `window_size` | `(0, 0)` | first-use size; `(0, 0)` sizes to content |
+| `window_pos` | `None` | first-use position |
+| `window_flags` | `0` | `imgui.WindowFlags_` bits |
+| `closable` | `True` | draw the close button and clear `visible` with it |
+| `shortcut` | `""` | menu shortcut text; the hotkey's text when empty |
+| `hotkey` | `None` | `Hotkey(key, ctrl=, shift=, alt=)` that toggles the panel |
+| `theme` | `Theme.dark()` | palette for what the panel draws itself |
+
+### `DebuggerConfig` — plus the above
 
 | field | default | purpose |
 |-------|---------|---------|
 | `target` | `None` | the object whose scopes come first |
-| `title` | `"Debugger"` | header text and default window title |
-| `theme` | `Theme.dark()` | colors |
 | `private` | `False` | show `_name` attributes |
 | `properties` | `True` | show the `properties` scope and expand nested properties |
 | `class_attrs` | `True` | show the `class` scope |
@@ -216,12 +313,25 @@ See all examples in [`examples/`](examples/).
 | `max_items` | `200` | rows per container before "+N more" |
 | `value_col` | `0.0` | pixel column values align at; `0` packs them after the name |
 | `show_toolbar` | `True` | draw the filter box and toggles |
-| `window_title`, `window_size`, `resizable` | — | OS window (one-shot mode) |
-| `ini_path` | `~/.imgui_debugger/debugger.ini` | where the layout `.ini` is saved |
-| `assets_folder` | `None` | folder providing the icon font; unset never overrides a host app's |
+| `show_title` | `True` | draw the title line inside the body |
+| `os_window_title`, `resizable`, `ini_path`, `assets_folder` | — | one-shot `run_debugger` only |
 
-`attach(target, **kwargs)` and `run_debugger(target, **kwargs)` take any of
-these as keyword arguments.
+### `StyleEditorConfig` — plus `PanelConfig`
+
+| field | default | purpose |
+|-------|---------|---------|
+| `on_save` | `None` | `on_save(data)`; falls back to writing `path` |
+| `on_load` | `None` | `on_load() -> dict \| None`; falls back to reading `path` |
+| `path` | `None` | file used by the fallback Save / Load |
+| `save_label`, `load_label` | `"Save"`, `"Load"` | button text |
+| `show_presets`, `show_revert` | `True` | the preset buttons and Revert |
+| `show_sizes`, `show_colors`, `show_rendering` | `True` | which tabs to draw |
+| `show_font_selector`, `show_style_selector` | `False` | imgui's own pickers above the tabs |
+| `size_groups` | `None` | replace the Sizes tab's field groups |
+| `extra_draw` | `None` | `extra_draw(editor)` under the toolbar |
+
+`attach(target, **kwargs)` and `run_debugger(target, **kwargs)` take any
+`DebuggerConfig` field as a keyword argument.
 
 ## Files on disk
 
@@ -230,23 +340,22 @@ the `IMGUI_DEBUGGER_HOME` env var):
 
 | path | written by | purpose |
 |------|-----------|---------|
-| `~/.imgui_debugger/debugger.ini` | `run_debugger` | hello_imgui window layout. Override with `config.ini_path`; an embedding app's own `ini_filename` always wins. |
-| `~/.imgui_debugger/assets/` | you (optional) | user assets folder. Never created automatically; added to hello_imgui's search path when the icon font cannot be resolved. |
+| `~/.imgui_debugger/debugger.ini`, `panel.ini` | `run_debugger`, `run_panel` | hello_imgui window layout. Override per call; an embedding app's own `ini_filename` always wins. |
+| `~/.imgui_debugger/style.json` | `save_style` with no path | the fallback style file |
+| `~/.imgui_debugger/assets/` | you (optional) | user assets folder, added to hello_imgui's search path when the icon font cannot be resolved |
 
 Embedded use writes nothing: `render()` and `render_window()` only draw.
 
 ## Notes
 
 - Reads are guarded. A property that raises, a `__repr__` that raises, and a
-  container that changes size mid-frame all render as a row rather than
-  crashing the frame.
-- Values are read fresh every frame, so the tree shows the state of the frame
-  you are looking at.
+  container that changes size mid-frame all render as a row rather than crashing
+  the frame.
 - Big containers are capped, not truncated silently: a "+N more" line says how
   many rows were left out.
 - Editing writes through the same setter the row was built from — `setattr` for
-  an attribute, `__setitem__` for a dict or list entry, the property's `fset`
-  for a property.
+  an attribute, `__setitem__` for a dict or list entry, the property's `fset` for
+  a property.
 
 ## Acknowledgements
 

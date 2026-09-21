@@ -4,12 +4,13 @@ Internal notes for contributors to `imgui_debugger`.
 
 ## What this is
 
-`imgui_debugger` renders a **live variable inspector** for
-[imgui-bundle](https://github.com/pthom/imgui_bundle): a collapsible tree of
-everything an object can see, grouped by scope, re-read every frame, with
-inline editors on the leaves that can be written back. The only runtime
-dependency is `imgui-bundle`. It knows nothing about any host app; a target is
-any Python object.
+`imgui_debugger` is a set of **standalone debug panels** for
+[imgui-bundle](https://github.com/pthom/imgui_bundle). Two are ours — a live
+variable inspector and a style editor with pluggable Save / Load — and the rest
+wrap imgui's own debug windows so none of them require the demo window. Every
+panel shares one surface (`visible`, `menu_item`, `render`, `render_window`) and
+one config base, so a host app wires them in the same way and can configure,
+replace or ignore any of them. The only runtime dependency is `imgui-bundle`.
 
 ## Commands
 
@@ -80,17 +81,36 @@ Three layers, in dependency order. Nothing below imports anything above it.
 
 **3. Controller — owns state, drives the view.**
 
+- `panel.py` — `Panel`, `PanelConfig` and `Hotkey`. The base every tool
+  subclasses: it owns `visible`, draws the menu entry, polls the hotkey and
+  begins/ends the window, leaving subclasses only `render()`. `window_id` is
+  `title##imgui_debugger_<window_id or class name>` so renaming a title keeps
+  the layout imgui saved under that id. `render_window` polls the hotkey
+  *before* the visibility check, which is what lets a hotkey reopen a closed
+  panel. `Panel.render` raises, so a window-only panel is honest about it
+  rather than silently drawing nothing.
+- `native.py` — imgui's own debug windows as panels. `NativeWindowPanel`
+  overrides `render_window` to call `imgui.show_*_window(True)` and feed the
+  returned open state back into `visible`; imgui owns the window and its title,
+  so the config's title is only the menu label. `UserGuidePanel` is the one
+  that can be inlined, because `show_user_guide()` draws no window of its own.
+  `DemoPanel` exists but is not in `DebugTools.default()`.
+- `tools.py` — `DebugTools`, an ordered list of panels with `draw_menu`,
+  `render`, and add/remove/lookup by title. It holds no drawing of its own; it
+  is the one place a host app touches to get everything at once.
 - `debugger.py` — `DebuggerConfig` (pure data) and `Debugger`. `scopes()`
   assembles the frame's roots in display order: target scopes, watches, frame
   scopes, runtime. `render()` draws the toolbar and the tree; `render_window()`
   wraps it in its own imgui window and honors `visible`. `expand_all` /
   `collapse_all` set `_force_open` for exactly one frame, cleared at the end of
   `render`.
-- `runner.py` — the one-shot harness only. Note the `.ini` handling:
-  hello_imgui otherwise drops the window-layout `.ini` in the cwd, so
-  `run_debugger` pins it to an absolute path (`config.ini_path` or
-  `default_ini_path()`) and creates the parent dir. It only fills `ini_filename`
-  when unset, so an embedding app's choice wins.
+- `runner.py` — the one-shot harnesses: `run_debugger` for the inspector and
+  `run_panel` for any panel. Note the `.ini` handling: hello_imgui otherwise
+  drops the window-layout `.ini` in the cwd, so both pin it to an absolute path
+  (`config.ini_path` or `default_ini_path()`) and create the parent dir. They
+  only fill `ini_filename` when unset, so an embedding app's choice wins.
+  `run_panel` picks `render` or `render_window` by asking whether the subclass
+  overrode `render`, so a native window-only panel still works.
 - `_assets.py` — per-user paths and font resolution. Everything the library
   writes lives under `data_dir()` = `~/.imgui_debugger` (env override
   `IMGUI_DEBUGGER_HOME`). `ensure_assets()` is deliberately non-clobbering: it
@@ -111,14 +131,18 @@ before PEP 667, so offering an editor there would lie. Globals are writable.
 
 ## Embedding
 
-Two entry points, and which one a host uses is the host's choice:
+Three entry points, and which one a host uses is the host's choice:
 
-- `dbg.render()` draws at the current cursor (a panel, a tab, a dock window).
-- `dbg.render_window()` opens its own imgui window and flips `visible` when the
-  user closes it, so a menu item or a hotkey can call `toggle()`.
+- `panel.render()` draws at the current cursor (a tab, a dock node, a sidebar).
+- `panel.render_window()` opens its own imgui window, polls the hotkey and
+  flips `visible` when the user closes it.
+- `tools.draw_menu()` + `tools.render()` does all of the above for a whole set.
 
-`run_debugger` is for poking at an object with no host app at all. It owns the
-immapp loop and blocks.
+`run_debugger` and `run_panel` are for poking at something with no host app at
+all. They own the immapp loop and block.
+
+A host app should never need to edit this package to add a tool: subclass
+`Panel`, implement `render`, and `DebugTools.add` it.
 
 ## Testing notes
 

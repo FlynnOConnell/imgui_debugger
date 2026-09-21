@@ -23,13 +23,13 @@ class App:
         self.style_editor = StyleEditor(
             StyleEditorConfig(
                 title="Style",
+                visible=False,
                 save_label="Save to settings",
                 load_label="Load from settings",
                 on_save=self.save_style,
                 on_load=self.load_style,
             )
         )
-        self.style_editor.visible = False
 
     def save_style(self, data: dict) -> None:
         """Write the serialized style into the app's own settings file."""

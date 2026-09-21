@@ -15,19 +15,20 @@ from __future__ import annotations
 
 import functools
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, List, Optional, Sequence, Tuple
 
 from imgui_bundle import imgui, imgui_ctx
 
+from .panel import Panel, PanelConfig
 from .scopes import Scope, Watch, frame_scopes, object_scopes, runtime_scope
 from .search import clear_cache
-from .theme import Theme, to_vec4
+from .theme import to_vec4
 from .tree import TreeStyle, draw_scope
 
 
 @dataclass
-class DebuggerConfig:
+class DebuggerConfig(PanelConfig):
     """What the debugger inspects and how it draws it.
 
     Parameters
@@ -35,10 +36,6 @@ class DebuggerConfig:
     target : object | None
         The object whose scopes are shown first, usually the widget being
         debugged.
-    title : str
-        Header text above the tree.
-    theme : Theme
-        Palette.
     private : bool
         Show ``_name`` attributes.
     properties : bool
@@ -59,16 +56,18 @@ class DebuggerConfig:
         Pixel column values are aligned at; ``0`` packs them after the name.
     show_toolbar : bool
         Draw the filter box and toggles above the tree.
-    window_title : str
-        OS window title in one-shot mode.
-    window_size : tuple[int, int]
-        OS window size in one-shot mode.
+    show_title : bool
+        Draw the title line inside the panel body.
+    os_window_title : str
+        OS window title in one-shot mode; the panel title when empty.
     resizable : bool
-        Whether the one-shot window can be resized.
+        Whether the one-shot OS window can be resized.
     ini_path : str | None
-        Where hello_imgui saves the window layout.
+        Where hello_imgui saves the layout in one-shot mode.
     assets_folder : str | None
         Folder providing the icon font; unset never overrides a host app's.
+
+    Every :class:`~imgui_debugger.panel.PanelConfig` field is also accepted.
 
     Examples
     --------
@@ -80,7 +79,7 @@ class DebuggerConfig:
 
     target: Any = None
     title: str = "Debugger"
-    theme: Theme = field(default_factory=Theme.dark)
+    window_size: Tuple[int, int] = (520, 780)
     private: bool = False
     properties: bool = True
     class_attrs: bool = True
@@ -91,14 +90,14 @@ class DebuggerConfig:
     max_items: int = 200
     value_col: float = 0.0
     show_toolbar: bool = True
-    window_title: str = ""
-    window_size: Tuple[int, int] = (520, 780)
+    show_title: bool = True
+    os_window_title: str = ""
     resizable: bool = True
     ini_path: Optional[str] = None
     assets_folder: Optional[str] = None
 
 
-class Debugger:
+class Debugger(Panel):
     """A live variable inspector drawn inside any imgui frame.
 
     Parameters
@@ -124,9 +123,10 @@ class Debugger:
     >>> dbg.render()                     # doctest: +SKIP
     """
 
+    config_class = DebuggerConfig
+
     def __init__(self, config: Optional[DebuggerConfig] = None, frame_depth: int = 1):
-        self.config = config or DebuggerConfig()
-        self.visible = True
+        super().__init__(config or DebuggerConfig())
         self.filter = ""
         self._watches: List[Watch] = []
         self._frame = None
@@ -134,18 +134,6 @@ class Debugger:
         self._focus_filter = False
         if self.config.show_frame:
             self.capture(frame_depth + 1)
-
-    @property
-    def theme(self) -> Theme:
-        """The active palette.
-
-        Examples
-        --------
-        >>> from imgui_debugger import Debugger
-        >>> Debugger().theme.frame_rounding
-        4.0
-        """
-        return self.config.theme
 
     @property
     def target(self):
@@ -291,42 +279,6 @@ class Debugger:
             force_open=self._force_open,
         )
 
-    def show(self) -> None:
-        """Make :meth:`render_window` draw the window again.
-
-        Examples
-        --------
-        >>> from imgui_debugger import Debugger
-        >>> dbg = Debugger()
-        >>> dbg.hide(); dbg.show(); dbg.visible
-        True
-        """
-        self.visible = True
-
-    def hide(self) -> None:
-        """Stop :meth:`render_window` from drawing the window.
-
-        Examples
-        --------
-        >>> from imgui_debugger import Debugger
-        >>> dbg = Debugger()
-        >>> dbg.hide(); dbg.visible
-        False
-        """
-        self.visible = False
-
-    def toggle(self) -> None:
-        """Flip :attr:`visible`, for a menu item or a hotkey.
-
-        Examples
-        --------
-        >>> from imgui_debugger import Debugger
-        >>> dbg = Debugger()
-        >>> dbg.toggle(); dbg.visible
-        False
-        """
-        self.visible = not self.visible
-
     def expand_all(self) -> None:
         """Expand every node on the next frame.
 
@@ -394,7 +346,7 @@ class Debugger:
         >>> attach(object()).draw_toolbar()     # doctest: +SKIP
         """
         cfg = self.config
-        if cfg.title:
+        if cfg.show_title and cfg.title:
             imgui.text_colored(to_vec4(cfg.theme.accent), cfg.title)
             if cfg.target is not None and imgui.is_item_hovered():
                 imgui.set_tooltip(f"{type(cfg.target).__name__} at 0x{id(cfg.target):x}")
@@ -438,35 +390,6 @@ class Debugger:
                     draw_scope(scope, style)
             finally:
                 imgui.pop_style_var()
-
-    def render_window(self, flags: int = 0) -> bool:
-        """Draw the debugger in its own imgui window, honoring :attr:`visible`.
-
-        Parameters
-        ----------
-        flags : int
-            Extra ``imgui.WindowFlags_`` bits.
-
-        Returns
-        -------
-        bool
-            True when the window was drawn this frame.
-
-        Examples
-        --------
-        >>> from imgui_debugger import attach
-        >>> dbg = attach(object())
-        >>> dbg.render_window()          # doctest: +SKIP
-        True
-        """
-        if not self.visible:
-            return False
-        title = self.config.window_title or self.config.title or "Debugger"
-        expanded, self.visible = imgui.begin(f"{title}##imgui_debugger", True, flags)
-        if expanded:
-            self.render()
-        imgui.end()
-        return expanded
 
     def focus_filter(self) -> None:
         """Put the keyboard cursor in the filter box on the next frame.
