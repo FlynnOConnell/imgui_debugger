@@ -66,6 +66,17 @@ Three layers, in dependency order. Nothing below imports anything above it.
 - `edit.py` — the inline editors. `can_edit` gates on type: bool, int, float,
   short str, and an `(r,g,b[,a])` float tuple. A failing setter is swallowed and
   reported as "not changed" rather than raising inside a frame.
+- `style.py` — the standalone style editor. Independent of the debugger: it
+  imports `theme` and `_assets` and nothing else in the package, so a host can
+  use it without ever building a `Debugger`. `imgui.show_style_editor()` cannot
+  be had without its Save Ref / Revert Ref / Export buttons, so this draws the
+  same three tabs itself and routes its two buttons through `on_save` /
+  `on_load` callbacks. `style_to_dict` reflects over `imgui.Style`'s
+  `property` descriptors rather than a hand-kept field list, so a new imgui
+  field serializes without an edit here; `SKIP_KEYS` holds the two that must
+  not travel between machines (`font_scale_dpi`, `font_size_base` are derived
+  from the screen at runtime). `apply_style_dict` ignores unknown keys, which
+  is what makes an older file still load.
 
 **3. Controller — owns state, drives the view.**
 

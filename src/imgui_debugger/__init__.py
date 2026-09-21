@@ -42,6 +42,15 @@ from .scopes import (
     runtime_scope,
 )
 from .search import clear_cache, matches
+from .style import (
+    StyleEditor,
+    StyleEditorConfig,
+    apply_style_dict,
+    default_style_path,
+    load_style,
+    save_style,
+    style_to_dict,
+)
 from .theme import Theme, to_vec4
 from .tree import TreeStyle, draw_child, draw_children, draw_scope
 
@@ -80,6 +89,14 @@ __all__ = [
     # search
     "matches",
     "clear_cache",
+    # style editor
+    "StyleEditor",
+    "StyleEditorConfig",
+    "style_to_dict",
+    "apply_style_dict",
+    "save_style",
+    "load_style",
+    "default_style_path",
     # theme
     "Theme",
     "to_vec4",

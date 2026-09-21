@@ -14,6 +14,7 @@ A live <b>variable inspector</b> for any imgui-bundle widget
 <a href="#install">install</a> ·
 <a href="#quick-start">quick start</a> ·
 <a href="#scopes">scopes</a> ·
+<a href="#style-editor">style editor</a> ·
 <a href="#examples">examples</a> ·
 <a href="#configuration-reference">configuration</a> ·
 <a href="https://github.com/FlynnOConnell/imgui_debugger/issues">issues</a>
@@ -114,6 +115,68 @@ dbg.watch("fps", lambda: {"now": imgui.get_io().framerate}, role="runtime")
 `watch_all(obj, ["metadata", "indices"])` does the same for several attributes
 in one call.
 
+## Style editor
+
+`StyleEditor` is the imgui demo's style editor with its Save Ref / Revert Ref /
+Export buttons replaced by two of yours. It is independent of the debugger —
+import it on its own.
+
+```python
+from imgui_debugger import StyleEditor, StyleEditorConfig
+
+editor = StyleEditor(StyleEditorConfig(
+    title="Style",
+    save_label="Save to settings",
+    load_label="Load from settings",
+    on_save=my_app.save_style,   # on_save(data: dict)
+    on_load=my_app.load_style,   # on_load() -> dict | None
+))
+editor.visible = False
+```
+
+Then two calls per frame — one in your menu, one anywhere in the frame:
+
+```python
+def draw_menu(self):
+    if imgui.begin_menu("View"):
+        self.editor.menu_item("Style Editor", "Ctrl+,")
+        imgui.end_menu()
+
+def draw(self):
+    ...
+    self.editor.render_window()
+```
+
+`menu_item` draws a checked entry bound to `visible`, so the menu shows whether
+the window is open and clicking it toggles. `render()` draws the body inline if
+you would rather host it in a panel you already own.
+
+With no `on_save` / `on_load`, the buttons fall back to reading and writing
+`config.path` as JSON (`~/.imgui_debugger/style.json` when that is unset too).
+`on_load` returning `None` is a cancel — that is how a native file dialog the
+user dismissed reports back. Errors from either hook land on the editor's status
+line instead of raising inside a frame.
+
+The tabs are the demo's: **Sizes** (grouped sliders), **Colors** (all 63, with a
+filter box and an alpha bar) and **Rendering**. Presets apply
+`style_colors_dark` / `_light` / `_classic`, and Revert restores the style as it
+was when the editor was constructed.
+
+The serialization is usable on its own:
+
+| function | does |
+|----------|------|
+| `style_to_dict(style=None)` | `{"sizes": {...}, "colors": {name: [r,g,b,a]}}` |
+| `apply_style_dict(data, style=None)` | writes it back, returns how many fields landed |
+| `save_style(path=None, style=None)` | `style_to_dict` to JSON |
+| `load_style(path=None, style=None)` | JSON to `apply_style_dict` |
+
+Colors are keyed by imgui's own names (`Text`, `FrameBg`, ...), and unknown keys
+are ignored, so a file written against an older imgui still loads. Two fields are
+deliberately not serialized: `font_scale_dpi` and `font_size_base` are derived
+from the screen at runtime, and restoring another machine's values resizes every
+font for the wrong display.
+
 ## Toolbar
 
 | control | what it does |
@@ -132,6 +195,7 @@ See all examples in [`examples/`](examples/).
 | debug_minimal | [`debug_minimal.py`](examples/debug_minimal.py) | one-shot window over a settings dataclass |
 | debug_widget | [`debug_widget.py`](examples/debug_widget.py) | a widget that owns its debugger, captures its own locals, and toggles it with F12 |
 | debug_edge_window | [`debug_edge_window.py`](examples/debug_edge_window.py) | a fastplotlib `EdgeWindow`, the widget shape pml_utilities and masknmf-toolbox use |
+| style_editor_menu | [`style_editor_menu.py`](examples/style_editor_menu.py) | the style editor behind a menu item, saving into the host app's own settings file |
 
 ## Configuration reference
 

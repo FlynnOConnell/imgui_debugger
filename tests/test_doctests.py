@@ -14,6 +14,7 @@ MODULES = [
     "imgui_debugger.runner",
     "imgui_debugger.scopes",
     "imgui_debugger.search",
+    "imgui_debugger.style",
     "imgui_debugger.theme",
     "imgui_debugger.tree",
 ]

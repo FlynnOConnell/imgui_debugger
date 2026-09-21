@@ -121,3 +121,64 @@ def test_headless_render_with_no_target():
     ensure_assets()
     dbg = Debugger(DebuggerConfig(show_toolbar=False))
     assert _run(dbg) >= 5
+
+
+STYLE_STATE = {"frames": 0, "editor": None, "saved": None}
+
+
+def _style_gui():
+    """Draw the style editor's menu entry, window and every tab body."""
+    from imgui_bundle import hello_imgui, imgui
+
+    editor = STYLE_STATE["editor"]
+    STYLE_STATE["frames"] += 1
+    if imgui.begin_main_menu_bar():
+        if imgui.begin_menu("View"):
+            editor.menu_item("Style Editor", "Ctrl+,")
+            imgui.end_menu()
+        imgui.end_main_menu_bar()
+    editor.render_window()
+    editor.draw_toolbar()
+    editor.draw_sizes()
+    editor.draw_colors()
+    editor.draw_rendering()
+    if STYLE_STATE["frames"] == 2:
+        editor.filter = "text"
+        editor.save()
+    if STYLE_STATE["frames"] == 3:
+        editor.load()
+    if STYLE_STATE["frames"] == 4:
+        editor.revert()
+    if STYLE_STATE["frames"] >= 5:
+        hello_imgui.get_runner_params().app_shall_exit = True
+
+
+def test_headless_style_editor_render():
+    from imgui_bundle import hello_imgui
+
+    from imgui_debugger import StyleEditor, StyleEditorConfig
+
+    ensure_assets()
+    editor = StyleEditor(StyleEditorConfig(on_save=_remember_save, on_load=_replay_save))
+    STYLE_STATE["frames"] = 0
+    STYLE_STATE["editor"] = editor
+    STYLE_STATE["saved"] = None
+    params = _null_runner_params()
+    params.callbacks.show_gui = _style_gui
+    try:
+        hello_imgui.run(params)
+    except Exception as exc:
+        pytest.skip(f"null backend unavailable: {exc}")
+    assert STYLE_STATE["frames"] >= 5
+    assert STYLE_STATE["saved"] is not None
+    assert editor.status == "reverted"
+
+
+def _remember_save(data):
+    """Save hook: keep the serialized style in module state."""
+    STYLE_STATE["saved"] = data
+
+
+def _replay_save():
+    """Load hook: hand back whatever the save hook kept."""
+    return STYLE_STATE["saved"]
