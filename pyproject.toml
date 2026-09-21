@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imgui_debugger"
+version = "0.1.0"
+description = "A live variable inspector you can drop into any imgui-bundle widget."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Flynn OConnell", email = "flynnoconnell@gmail.com" }]
+keywords = ["imgui", "imgui-bundle", "hello-imgui", "debugger", "inspector", "gui", "widget"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: Software Development :: User Interfaces",
+]
+dependencies = [
+    "imgui-bundle>=1.92,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+docs = ["pillow>=9", "numpy>=1.21"]
+
+[project.urls]
+Homepage = "https://github.com/FlynnOConnell/imgui_debugger"
+Source = "https://github.com/FlynnOConnell/imgui_debugger"
+Issues = "https://github.com/FlynnOConnell/imgui_debugger/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+imgui_debugger = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
