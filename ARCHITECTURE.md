@@ -55,6 +55,17 @@ Three layers, in dependency order. Nothing below imports anything above it.
 
 **2. View — draws, holds no state.**
 
+- `widgets.py`, `table.py`, `popups.py`, `player.py`, `trace_plot.py` — the
+  widgets ported from `masknmf.visualization.imgui` and `mbo_utilities.gui.imgui`,
+  which held diverged copies of the same code. `table.RoiOrder` is the union of
+  the two: masknmf's name-based `sort_by`, `pinned`, float ranges, `prefix_rows`
+  and `row_color`, plus mbo's `labels`/`filter_label`, `RowAction`,
+  `next_unlabeled` and `step_group`. Every added feature is inert when its input
+  is absent, so neither caller pays for the other's. `trace_plot` imports
+  fastplotlib inside `dock` and `link` only, so the package keeps its two
+  dependencies. `theme.Theme` absorbed the `ok` / `warn` / `code` / `danger`
+  roles both copies had; masknmf's `err` is this package's `error`.
+
 - `theme.py` — `Theme`, a frozen dataclass of `(r,g,b,a)` tuples plus rounding.
   Colors become `imgui.ImVec4` lazily at draw time, so a theme is context-free.
   A `Child.kind` maps to a theme field through `tree.ROLE_COLORS`.

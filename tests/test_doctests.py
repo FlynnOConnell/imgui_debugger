@@ -13,14 +13,19 @@ MODULES = [
     "imgui_debugger.format",
     "imgui_debugger.native",
     "imgui_debugger.panel",
+    "imgui_debugger.player",
+    "imgui_debugger.popups",
     "imgui_debugger.runner",
     "imgui_debugger.scopes",
     "imgui_debugger.search",
     "imgui_debugger.store",
+    "imgui_debugger.table",
     "imgui_debugger.style",
     "imgui_debugger.theme",
     "imgui_debugger.tools",
+    "imgui_debugger.trace_plot",
     "imgui_debugger.tree",
+    "imgui_debugger.widgets",
 ]
 
 

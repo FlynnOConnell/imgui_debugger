@@ -7,7 +7,14 @@ cannot initialize here the test skips rather than fails.
 
 import pytest
 
-from imgui_debugger import Debugger, DebuggerConfig, Theme, attach, ensure_assets
+from imgui_debugger import (
+    Debugger,
+    DebuggerConfig,
+    RowAction,
+    Theme,
+    attach,
+    ensure_assets,
+)
 
 STATE = {"frames": 0, "debugger": None}
 
@@ -303,3 +310,91 @@ def test_headless_store_backed_editor(tmp_path):
     assert store.presets() == ["night"]
     assert store.active_preset() == "night"
     assert store.style() is not None
+
+
+WIDGETS_STATE = {"frames": 0, "order": None, "plot": None, "player": None, "panel": None}
+
+
+def _widgets_gui():
+    """Draw the ported table, trace plot, player, popups and layout helpers."""
+    import numpy as np
+    from imgui_bundle import hello_imgui, imgui
+
+    from imgui_debugger import (
+        card,
+        draw_filter_row,
+        draw_keybinds_popup,
+        draw_path_popup,
+        grid,
+        help_mark,
+        right_aligned_text,
+        section,
+        draw_table,
+    )
+
+    state = WIDGETS_STATE
+    state["frames"] += 1
+    imgui.begin("host")
+    section("Widgets")
+    with card("stats", "Stats", height=60):
+        imgui.text("4 items")
+        help_mark("how many rows the table holds")
+    g = grid(["threshold", "engine"])
+    g.row("threshold")
+    imgui.set_next_item_width(g.w)
+    imgui.slider_float("##threshold", 0.4, 0.0, 1.0)
+    help_mark("detection threshold")
+    right_aligned_text("3 of 4")
+    state["player"].draw()
+    draw_filter_row(state["order"])
+    draw_table(
+        state["order"],
+        ["id", "area", "label"],
+        {"area": lambda i: f"{i}", "label": lambda i: "-"},
+        state["frames"] == 1,
+        actions=(RowAction("x", "delete", lambda i: None),),
+        row_color=lambda i: (1.0, 0.5, 0.0),
+        prefix_rows=[(0, "all")],
+    )
+    imgui.end()
+    imgui.begin("traces")
+    state["plot"].draw()
+    imgui.end()
+    draw_keybinds_popup([("t", "trace"), ("d", "delete")], True)
+    draw_path_popup("Open", True, "/tmp/x", "path", "Open", browse=lambda: None, note="note")
+    state["panel"].render_window()
+    if state["frames"] >= 4:
+        hello_imgui.get_runner_params().app_shall_exit = True
+
+
+def test_headless_ported_widgets_render():
+    import numpy as np
+    from imgui_bundle import hello_imgui
+
+    from imgui_debugger import KeybindsPanel, MoviePlayer, RoiOrder, TracePlot
+
+    ensure_assets()
+    order = RoiOrder({"area": np.array([10.0, 30.0, 20.0, 40.0])}, 4,
+                     labels=np.array([0, 1, -1, 0]))
+    order.set_range_column("area")
+    plot = TracePlot(["raw", "dff"], 500, link_y=False)
+    rng = np.random.default_rng(0)
+    plot.set("raw", [("roi 0", rng.normal(size=500), None)])
+    plot.set("dff", [("roi 0", rng.normal(size=500), (1.0, 0.4, 0.2))])
+    plot.mark("onset", [100, 300])
+    plot.span("stim", [50], [150])
+    panel = KeybindsPanel(bindings=[("t", "trace")])
+    panel.show()
+
+    WIDGETS_STATE.update(
+        frames=0, order=order, plot=plot,
+        player=MoviePlayer(np.zeros((20, 4, 4), dtype=np.float32)), panel=panel,
+    )
+    params = _null_runner_params()
+    params.callbacks.show_gui = _widgets_gui
+    try:
+        hello_imgui.run(params)
+    except Exception as exc:
+        pytest.skip(f"null backend unavailable: {exc}")
+
+    assert WIDGETS_STATE["frames"] >= 4

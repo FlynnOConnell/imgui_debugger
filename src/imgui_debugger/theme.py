@@ -71,8 +71,16 @@ class Theme:
     runtime: Color = (0.90, 0.60, 0.40, 1.0)
     error: Color = (0.95, 0.40, 0.40, 1.0)
     changed: Color = (1.00, 0.85, 0.35, 1.0)
+    # panel roles, shared with the ported widgets
+    ok: Color = (0.40, 0.90, 0.40, 1.0)
+    warn: Color = (1.00, 0.80, 0.20, 1.0)
+    code: Color = (0.55, 0.75, 1.00, 1.0)
+    danger: Color = (0.75, 0.15, 0.15, 0.8)
+    danger_hover: Color = (0.90, 0.20, 0.20, 1.0)
     frame_rounding: float = 4.0
     child_rounding: float = 4.0
+    rounding: float = 6.0
+    card_rounding: float = 0.0
 
     @staticmethod
     def dark() -> "Theme":
@@ -115,6 +123,9 @@ class Theme:
             runtime=(0.65, 0.35, 0.10, 1.0),
             error=(0.75, 0.15, 0.15, 1.0),
             changed=(0.60, 0.42, 0.00, 1.0),
+            ok=(0.10, 0.55, 0.15, 1.0),
+            warn=(0.70, 0.45, 0.00, 1.0),
+            code=(0.15, 0.35, 0.65, 1.0),
         )
 
     def replace(self, **changes) -> "Theme":

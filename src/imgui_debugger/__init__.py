@@ -39,6 +39,13 @@ from .native import (
     UserGuidePanel,
 )
 from .panel import Hotkey, Panel, PanelConfig
+from .player import MoviePlayer, crop_slices
+from .popups import (
+    KeybindsConfig,
+    KeybindsPanel,
+    draw_keybinds_popup,
+    draw_path_popup,
+)
 from .runner import run_debugger, run_panel
 from .scopes import (
     Child,
@@ -54,6 +61,16 @@ from .scopes import (
 )
 from .search import clear_cache, matches
 from .store import ConfigStore
+from .table import (
+    FILTER_ALL,
+    UNLABELED,
+    RoiOrder,
+    RowAction,
+    draw_filter_row,
+    draw_label_filter,
+    draw_range_filter,
+    draw_table,
+)
 from .style import (
     StyleEditor,
     StyleEditorConfig,
@@ -65,7 +82,20 @@ from .style import (
 )
 from .theme import Theme, to_vec4
 from .tools import DebugTools
+from .trace_plot import TracePlot
 from .tree import TreeStyle, draw_child, draw_children, draw_scope
+from .widgets import (
+    Grid,
+    button_colors,
+    card,
+    close_button,
+    em,
+    grid,
+    help_mark,
+    popup,
+    right_aligned_text,
+    section,
+)
 
 __version__ = "0.2.0"
 
@@ -126,6 +156,33 @@ __all__ = [
     "UserGuidePanel",
     "NativeWindowPanel",
     "NativePanelConfig",
+    # ported widgets
+    "RoiOrder",
+    "RowAction",
+    "draw_table",
+    "draw_range_filter",
+    "draw_label_filter",
+    "draw_filter_row",
+    "FILTER_ALL",
+    "UNLABELED",
+    "TracePlot",
+    "MoviePlayer",
+    "crop_slices",
+    "KeybindsPanel",
+    "KeybindsConfig",
+    "draw_keybinds_popup",
+    "draw_path_popup",
+    # layout helpers
+    "em",
+    "card",
+    "section",
+    "popup",
+    "close_button",
+    "help_mark",
+    "right_aligned_text",
+    "button_colors",
+    "Grid",
+    "grid",
     # theme
     "Theme",
     "to_vec4",

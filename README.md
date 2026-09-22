@@ -13,6 +13,7 @@ Standalone, configurable <b>debug panels</b> for imgui-bundle apps
 <br>
 <a href="#install">install</a> ·
 <a href="#the-panels">panels</a> ·
+<a href="#the-widgets">widgets</a> ·
 <a href="#one-menu-for-everything">one menu</a> ·
 <a href="#variable-inspector">inspector</a> ·
 <a href="#style-editor">style editor</a> ·
@@ -56,8 +57,8 @@ nothing about them — a target is any Python object.
 pip install imgui_debugger
 ```
 
-The only dependency is `imgui-bundle` (which provides imgui, hello_imgui,
-immapp and the FontAwesome icon font).
+Dependencies are `imgui-bundle` (imgui, implot, hello_imgui, immapp and the
+FontAwesome icon font) and `numpy`.
 
 ## The panels
 
@@ -122,6 +123,44 @@ class Timings(Panel):
     def render(self):
         imgui.text(f"{imgui.get_io().framerate:.0f} fps")
 ```
+
+## The widgets
+
+Beside the panels, the package ships the imgui widgets that had been copied
+between repos. Each one is the merge of the copies, not a new invention:
+
+| widget | what it is | came from |
+|--------|------------|-----------|
+| `RoiOrder` + `draw_table` | filter, stable sort, clipped table with row actions | both repos' `table.py`, which had diverged |
+| `TracePlot` | stacked implot panels, linked x, draggable playhead, min/max decimation | `masknmf…imgui.trace_plot` |
+| `MoviePlayer` | play/pause, frame slider, fps, lazy cropped reads | both repos' `movie_player.py` |
+| `KeybindsPanel`, `draw_path_popup` | the key reference and the path prompt | both repos' `panels.py` |
+| `em`, `card`, `section`, `grid`, `help_mark`, `right_aligned_text`, `button_colors`, `popup` | the layout and styling helpers the panels are built from | `masknmf…imgui.theme` and `mbo_utilities.gui._theme` |
+
+```python
+from imgui_debugger import RoiOrder, draw_table, draw_filter_row
+
+order = RoiOrder({"area": areas, "snr": snr}, n_rois, labels=labels)
+order.set_range_column("snr")
+
+draw_filter_row(order)
+scroll = draw_table(
+    order, ["id", "area", "snr"],
+    {"area": lambda i: f"{areas[i]:.0f}", "snr": lambda i: f"{snr[i]:.2f}"},
+    scroll, on_select=viewer.select,
+    actions=(RowAction("x", "delete", viewer.delete),),
+)
+```
+
+`RoiOrder` is the union of the two copies: masknmf's name-based sort, pinned
+column, float ranges, `prefix_rows` and row colours, plus mbo's label filtering,
+row action buttons, `next_unlabeled` and `step_group`. A feature you do not use
+costs nothing — `labels=None` hides the label filter, no `actions` means no
+extra column.
+
+`TracePlot` keeps its fastplotlib hooks (`dock`, `link`) but imports
+fastplotlib inside those two methods, so the plot works in an app that does not
+have it.
 
 ## One menu for everything
 
@@ -331,8 +370,8 @@ See all examples in [`examples/`](examples/).
 | name | file | what it shows |
 |------|------|---------------|
 | debug_minimal | [`debug_minimal.py`](examples/debug_minimal.py) | one-shot window over a settings dataclass |
-| debug_widget | [`debug_widget.py`](examples/debug_widget.py) | a widget that owns its inspector, captures its own locals, and toggles it with F12 |
-| debug_edge_window | [`debug_edge_window.py`](examples/debug_edge_window.py) | a fastplotlib `EdgeWindow`, the widget shape pml_utilities and masknmf-toolbox use |
+| roi_viewer | [`roi_viewer.py`](examples/roi_viewer.py) | a whole ROI viewer built only from the ported widgets, with the inspector attached |
+| debug_edge_window | [`debug_edge_window.py`](examples/debug_edge_window.py) | the same table and trace plot inside a fastplotlib `EdgeWindow`, the shape pml_utilities and masknmf-toolbox use |
 | style_editor_menu | [`style_editor_menu.py`](examples/style_editor_menu.py) | the style editor alone, on a menu, saving into the app's own settings file |
 | debug_tools_menu | [`debug_tools_menu.py`](examples/debug_tools_menu.py) | the whole set behind one menu, with hotkeys, a `ConfigStore` and auto-loaded style |
 
