@@ -19,6 +19,7 @@ from imgui_bundle import imgui
 from .debugger import Debugger, DebuggerConfig
 from .native import DebugLogPanel, IdStackPanel, MetricsPanel
 from .panel import Panel
+from .store import ConfigStore
 from .style import StyleEditor, StyleEditorConfig
 
 
@@ -43,12 +44,24 @@ class DebugTools:
     False
     """
 
-    def __init__(self, panels: Optional[Sequence[Panel]] = None, menu_label: str = "Debug"):
+    def __init__(
+        self,
+        panels: Optional[Sequence[Panel]] = None,
+        menu_label: str = "Debug",
+        store: Optional[ConfigStore] = None,
+    ):
         self.panels: List[Panel] = list(panels or ())
         self.menu_label = menu_label
+        self.store = store
 
     @classmethod
-    def default(cls, target=None, menu_label: str = "Debug", **kwargs) -> "DebugTools":
+    def default(
+        cls,
+        target=None,
+        menu_label: str = "Debug",
+        store: Optional[ConfigStore] = None,
+        **kwargs,
+    ) -> "DebugTools":
         """The usual set: variable inspector, style editor and imgui's own tools.
 
         The demo window is deliberately not included; add
@@ -60,6 +73,9 @@ class DebugTools:
             The object the variable inspector starts on.
         menu_label : str
             Label for the menu.
+        store : ConfigStore | None
+            Where the style editor saves and where :meth:`load_state` and
+            :meth:`save_state` read and write the panels.
         **kwargs
             Any :class:`~imgui_debugger.DebuggerConfig` field, for the inspector.
 
@@ -78,12 +94,13 @@ class DebugTools:
         return cls(
             [
                 debugger,
-                StyleEditor(StyleEditorConfig(visible=False)),
+                StyleEditor(StyleEditorConfig(visible=False, store=store)),
                 MetricsPanel(),
                 DebugLogPanel(),
                 IdStackPanel(),
             ],
             menu_label,
+            store,
         )
 
     def __iter__(self) -> Iterator[Panel]:
@@ -252,3 +269,62 @@ class DebugTools:
         """
         for panel in self.panels:
             panel.render_window()
+
+    def load_state(self) -> bool:
+        """Restore every panel's saved state from the store.
+
+        Call it once at startup, after building the set.
+
+        Returns
+        -------
+        bool
+            True when a store was set and something was restored.
+
+        Examples
+        --------
+        >>> from imgui_debugger import ConfigStore, DebugTools
+        >>> DebugTools.default(store=ConfigStore("build/cfg")).load_state()
+        False
+        """
+        if self.store is None:
+            return False
+        saved = self.store.read_state().get("panels", {})
+        if not saved:
+            return False
+        for panel in self.panels:
+            state = saved.get(panel.window_id)
+            if state:
+                panel.set_state(state)
+        return True
+
+    def save_state(self) -> bool:
+        """Write every panel's state to the store.
+
+        Call it when the app closes, or whenever a panel is toggled.
+
+        Examples
+        --------
+        >>> from imgui_debugger import ConfigStore, DebugTools
+        >>> DebugTools.default(store=ConfigStore("build/cfg")).save_state()  # doctest: +SKIP
+        True
+        """
+        if self.store is None:
+            return False
+        panels = {p.window_id: p.get_state() for p in self.panels}
+        return self.store.update_state(panels=panels)
+
+    def apply_style(self) -> int:
+        """Apply the store's saved style to the live imgui style, at startup.
+
+        Returns
+        -------
+        int
+            How many fields were applied; ``0`` without a store or a saved style.
+
+        Examples
+        --------
+        >>> from imgui_debugger import ConfigStore, DebugTools
+        >>> DebugTools.default(store=ConfigStore("build/nope")).apply_style()
+        0
+        """
+        return self.store.apply_style() if self.store is not None else 0

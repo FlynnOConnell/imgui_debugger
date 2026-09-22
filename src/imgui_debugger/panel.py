@@ -149,6 +149,7 @@ class Panel:
     >>> from imgui_debugger import Panel, PanelConfig
     >>> class Counter(Panel):
     ...     config_class = PanelConfig
+    ...     state_fields = ()
     ...     def render(self):
     ...         pass
     >>> panel = Counter(PanelConfig(title="Counter", visible=False))
@@ -160,6 +161,7 @@ class Panel:
     """
 
     config_class = PanelConfig
+    state_fields: Tuple[str, ...] = ()
 
     def __init__(self, config: Optional[PanelConfig] = None):
         self.config = config or self.config_class()
@@ -289,6 +291,46 @@ class Panel:
             return False
         self.toggle()
         return True
+
+    def get_state(self) -> dict:
+        """The panel state worth restoring next launch, as plain JSON values.
+
+        Window size and position are left out on purpose: those are imgui's to
+        persist, through the ``.ini`` at
+        :attr:`~imgui_debugger.store.ConfigStore.layout_ini`.
+
+        Examples
+        --------
+        >>> from imgui_debugger import StyleEditor, StyleEditorConfig
+        >>> StyleEditor(StyleEditorConfig(visible=False)).get_state()["visible"]
+        False
+        """
+        state = {"visible": self.visible}
+        for name in self.state_fields:
+            state[name] = getattr(self.config, name)
+        return state
+
+    def set_state(self, state: dict) -> None:
+        """Restore what :meth:`get_state` saved, ignoring keys it does not know.
+
+        Parameters
+        ----------
+        state : dict
+            A dict from a previous :meth:`get_state`.
+
+        Examples
+        --------
+        >>> from imgui_debugger import StyleEditor
+        >>> panel = StyleEditor()
+        >>> panel.set_state({"visible": False, "gone": 1})
+        >>> panel.visible
+        False
+        """
+        if "visible" in state:
+            self.visible = bool(state["visible"])
+        for name in self.state_fields:
+            if name in state:
+                setattr(self.config, name, state[name])
 
     def render(self) -> None:
         """Draw the panel body at the current cursor, with no window around it.

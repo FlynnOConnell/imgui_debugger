@@ -124,6 +124,18 @@ class Debugger(Panel):
     """
 
     config_class = DebuggerConfig
+    state_fields = (
+        "private",
+        "properties",
+        "class_attrs",
+        "editable",
+        "show_frame",
+        "show_runtime",
+        "max_depth",
+        "max_items",
+        "value_col",
+        "show_toolbar",
+    )
 
     def __init__(self, config: Optional[DebuggerConfig] = None, frame_depth: int = 1):
         super().__init__(config or DebuggerConfig())

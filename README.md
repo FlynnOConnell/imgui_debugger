@@ -16,6 +16,7 @@ Standalone, configurable <b>debug panels</b> for imgui-bundle apps
 <a href="#one-menu-for-everything">one menu</a> ·
 <a href="#variable-inspector">inspector</a> ·
 <a href="#style-editor">style editor</a> ·
+<a href="#saving-and-auto-loading">saving</a> ·
 <a href="#examples">examples</a> ·
 <a href="#configuration-reference">configuration</a> ·
 <a href="https://github.com/FlynnOConnell/imgui_debugger/issues">issues</a>
@@ -269,6 +270,60 @@ deliberately not serialized: `font_scale_dpi` and `font_size_base` are derived
 from the screen at runtime, and restoring another machine's values resizes every
 font for the wrong display.
 
+## Saving and auto-loading
+
+`ConfigStore` is one directory holding everything this package remembers. Point
+it at wherever your app already keeps settings:
+
+```python
+from imgui_debugger import ConfigStore, DebugTools
+
+STORE = ConfigStore(get_mbo_dirs()["imgui"])       # or Path.home() / ".my_app/imgui"
+tools = DebugTools.default(self, store=STORE)
+tools.load_state()                                  # which panels were open, how
+```
+
+then three calls at the app's edges:
+
+```python
+params.ini_filename = STORE.layout_ini              # window size/position
+params.ini_folder_type = hello_imgui.IniFolderType.absolute_path
+params.callbacks.post_init = tools.apply_style      # the style, at startup
+params.callbacks.before_exit = tools.save_state     # panel state, at exit
+```
+
+| path under the store root | holds |
+|---------------------------|-------|
+| `state.json` | the style as it was left, each panel's state, the active preset |
+| `styles/<name>.json` | one named preset per file |
+| `layout.ini` | hello_imgui's window geometry |
+
+**The style saves itself.** With a store, the editor marks itself dirty the
+moment a slider or a color moves and writes `state.json` once the changes stop
+(`autosave_delay`, one second by default). `tools.apply_style()` puts it back at
+the next launch. Set `autosave=False` to keep it on the Save button only.
+
+**Named presets** are the row under the toolbar: a dropdown of what is in
+`styles/`, a name field, Save as, and Delete. Loading one applies it and records
+it as active, so the dropdown opens on it next time. Save as writes the *current*
+style, which is whatever the sliders say — the autosave and the presets do not
+fight over the same file.
+
+**Panel state** is `visible` plus each panel's own config fields
+(`Panel.state_fields`): the inspector's `private`, `editable`, `max_depth`,
+`value_col`, …; the style editor's tab switches. Window size and position are
+deliberately *not* in there — those are imgui's to persist, which is what
+`layout_ini` is for.
+
+Every store call is guarded: a missing directory, a half-written file or a
+read-only disk gives an empty dict or `False`, never an exception inside a
+frame. The directory is created on the first write, not on construction.
+
+`ConfigStore` is also usable directly — `read_state`, `write_state`,
+`update_state`, `style`, `set_style`, `presets`, `read_preset`, `write_preset`,
+`delete_preset`, `active_preset`, `set_active_preset`, `panel_state`,
+`set_panel_state`, `apply_style`.
+
 ## Examples
 
 See all examples in [`examples/`](examples/).
@@ -279,7 +334,7 @@ See all examples in [`examples/`](examples/).
 | debug_widget | [`debug_widget.py`](examples/debug_widget.py) | a widget that owns its inspector, captures its own locals, and toggles it with F12 |
 | debug_edge_window | [`debug_edge_window.py`](examples/debug_edge_window.py) | a fastplotlib `EdgeWindow`, the widget shape pml_utilities and masknmf-toolbox use |
 | style_editor_menu | [`style_editor_menu.py`](examples/style_editor_menu.py) | the style editor alone, on a menu, saving into the app's own settings file |
-| debug_tools_menu | [`debug_tools_menu.py`](examples/debug_tools_menu.py) | the whole set behind one menu, with hotkeys and a replaced style editor |
+| debug_tools_menu | [`debug_tools_menu.py`](examples/debug_tools_menu.py) | the whole set behind one menu, with hotkeys, a `ConfigStore` and auto-loaded style |
 
 ## Configuration reference
 
@@ -327,6 +382,9 @@ See all examples in [`examples/`](examples/).
 | `show_presets`, `show_revert` | `True` | the preset buttons and Revert |
 | `show_sizes`, `show_colors`, `show_rendering` | `True` | which tabs to draw |
 | `show_font_selector`, `show_style_selector` | `False` | imgui's own pickers above the tabs |
+| `store` | `None` | a `ConfigStore` backing Save, Load, presets and autosave |
+| `autosave`, `autosave_delay` | `True`, `1.0` | write the style back once it stops changing |
+| `show_preset_bar` | `True` | the named-preset row; needs a store |
 | `size_groups` | `None` | replace the Sizes tab's field groups |
 | `extra_draw` | `None` | `extra_draw(editor)` under the toolbar |
 
@@ -342,6 +400,7 @@ the `IMGUI_DEBUGGER_HOME` env var):
 |------|-----------|---------|
 | `~/.imgui_debugger/debugger.ini`, `panel.ini` | `run_debugger`, `run_panel` | hello_imgui window layout. Override per call; an embedding app's own `ini_filename` always wins. |
 | `~/.imgui_debugger/style.json` | `save_style` with no path | the fallback style file |
+| `<store root>/state.json`, `styles/`, `layout.ini` | `ConfigStore` | style, presets, panel state, window geometry |
 | `~/.imgui_debugger/assets/` | you (optional) | user assets folder, added to hello_imgui's search path when the icon font cannot be resolved |
 
 Embedded use writes nothing: `render()` and `render_window()` only draw.

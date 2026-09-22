@@ -53,6 +53,7 @@ from .scopes import (
     runtime_scope,
 )
 from .search import clear_cache, matches
+from .store import ConfigStore
 from .style import (
     StyleEditor,
     StyleEditorConfig,
@@ -74,6 +75,7 @@ __all__ = [
     "PanelConfig",
     "Hotkey",
     "DebugTools",
+    "ConfigStore",
     # widget + harness
     "Debugger",
     "DebuggerConfig",

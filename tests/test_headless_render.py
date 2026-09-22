@@ -262,3 +262,44 @@ def test_headless_hotkey_toggles_a_panel():
         pytest.skip(f"null backend unavailable: {exc}")
 
     assert panel.visible
+
+
+STORE_STATE = {"frames": 0, "editor": None}
+
+
+def _store_gui():
+    """Draw the editor with a store, exercising the preset bar and autosave."""
+    from imgui_bundle import hello_imgui
+
+    editor = STORE_STATE["editor"]
+    STORE_STATE["frames"] += 1
+    editor.render_window()
+    if STORE_STATE["frames"] == 2:
+        editor.preset_name = "night"
+        editor.save_preset("night")
+    if STORE_STATE["frames"] == 3:
+        editor.mark_dirty()
+    if STORE_STATE["frames"] >= 4:
+        hello_imgui.get_runner_params().app_shall_exit = True
+
+
+def test_headless_store_backed_editor(tmp_path):
+    from imgui_bundle import hello_imgui
+
+    from imgui_debugger import ConfigStore, StyleEditor, StyleEditorConfig
+
+    ensure_assets()
+    store = ConfigStore(tmp_path / "cfg")
+    editor = StyleEditor(StyleEditorConfig(store=store, autosave_delay=0.0))
+    STORE_STATE["frames"] = 0
+    STORE_STATE["editor"] = editor
+    params = _null_runner_params()
+    params.callbacks.show_gui = _store_gui
+    try:
+        hello_imgui.run(params)
+    except Exception as exc:
+        pytest.skip(f"null backend unavailable: {exc}")
+
+    assert store.presets() == ["night"]
+    assert store.active_preset() == "night"
+    assert store.style() is not None

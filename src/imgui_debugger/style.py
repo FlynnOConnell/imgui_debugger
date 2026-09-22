@@ -17,6 +17,7 @@ Examples
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple, Union
@@ -25,6 +26,7 @@ from imgui_bundle import imgui
 
 from ._assets import data_dir
 from .panel import Panel, PanelConfig
+from .store import ConfigStore
 from .theme import to_vec4
 
 # derived from the DPI and the font atlas at runtime; restoring them from a file
@@ -309,6 +311,16 @@ class StyleEditorConfig(PanelConfig):
         Which tabs to draw; a single tab is drawn without the tab bar.
     show_font_selector, show_style_selector : bool
         Draw imgui's font and built-in-style pickers above the tabs.
+    store : ConfigStore | None
+        Where Save, Load, the presets and the autosave go when no hook is
+        given.
+    autosave : bool
+        With a store, write the style back a moment after it stops changing, so
+        the next launch opens on it.
+    autosave_delay : float
+        Seconds of quiet before an autosave is written.
+    show_preset_bar : bool
+        Draw the named-preset row; needs a store.
     size_groups : tuple
         ``((group name, ((field, lo, hi), ...)), ...)`` driving the Sizes tab;
         :data:`SIZE_GROUPS` when None.
@@ -339,6 +351,10 @@ class StyleEditorConfig(PanelConfig):
     show_rendering: bool = True
     show_font_selector: bool = False
     show_style_selector: bool = False
+    store: Optional[ConfigStore] = None
+    autosave: bool = True
+    autosave_delay: float = 1.0
+    show_preset_bar: bool = True
     size_groups: Optional[tuple] = None
     extra_draw: Optional[Callable[["StyleEditor"], None]] = None
 
@@ -366,12 +382,16 @@ class StyleEditor(Panel):
     """
 
     config_class = StyleEditorConfig
+    state_fields = ("show_sizes", "show_colors", "show_rendering")
 
     def __init__(self, config: Optional[StyleEditorConfig] = None):
         super().__init__(config or StyleEditorConfig())
         self.filter = ""
         self.status = ""
+        self.preset_name = ""
         self._ref: Optional[dict] = None
+        self._presets: Optional[list] = None
+        self._dirty_at: Optional[float] = None
 
     def capture_ref(self) -> None:
         """Snapshot the current style as the one Revert goes back to.
@@ -401,8 +421,12 @@ class StyleEditor(Panel):
             if self.config.on_save is not None:
                 self.config.on_save(data)
                 self.status = "saved"
+            elif self.config.store is not None:
+                self.config.store.set_style(data)
+                self.status = f"saved to {self.config.store.state_path}"
             else:
                 self.status = f"saved to {save_style(self.config.path)}"
+            self._dirty_at = None
         except Exception as exc:
             self.status = f"save failed: {exc}"
 
@@ -422,8 +446,15 @@ class StyleEditor(Panel):
                     self.status = "load cancelled"
                     return
                 self.status = f"loaded {apply_style_dict(data)} fields"
+            elif self.config.store is not None:
+                data = self.config.store.style()
+                if data is None:
+                    self.status = "nothing saved yet"
+                    return
+                self.status = f"loaded {apply_style_dict(data)} fields"
             else:
                 self.status = f"loaded {load_style(self.config.path)} fields"
+            self._dirty_at = None
         except Exception as exc:
             self.status = f"load failed: {exc}"
 
@@ -438,6 +469,154 @@ class StyleEditor(Panel):
         if self._ref is not None:
             apply_style_dict(self._ref)
             self.status = "reverted"
+
+    def presets(self) -> list:
+        """The store's named presets, read once and cached until they change.
+
+        Examples
+        --------
+        >>> from imgui_debugger import StyleEditor
+        >>> StyleEditor().presets()
+        []
+        """
+        if self._presets is None:
+            store = self.config.store
+            self._presets = store.presets() if store is not None else []
+        return self._presets
+
+    def refresh_presets(self) -> None:
+        """Re-read the preset list from the store on the next draw.
+
+        Examples
+        --------
+        >>> from imgui_debugger import StyleEditor
+        >>> StyleEditor().refresh_presets()
+        """
+        self._presets = None
+
+    def save_preset(self, name: str) -> None:
+        """Save the current style as a named preset in the store.
+
+        Parameters
+        ----------
+        name : str
+            The preset name; an empty name is ignored.
+
+        Examples
+        --------
+        >>> from imgui_debugger import ConfigStore, StyleEditor, StyleEditorConfig
+        >>> editor = StyleEditor(StyleEditorConfig(store=ConfigStore("build/cfg")))
+        >>> editor.save_preset("night")           # doctest: +SKIP
+        """
+        store = self.config.store
+        if store is None or not name.strip():
+            return
+        path = store.write_preset(name, style_to_dict())
+        if path is None:
+            self.status = f"could not save preset {name!r}"
+            return
+        store.set_active_preset(name)
+        self.refresh_presets()
+        self.status = f"saved preset {name!r}"
+
+    def load_preset(self, name: str) -> None:
+        """Apply a named preset from the store and make it the active one.
+
+        Parameters
+        ----------
+        name : str
+            The preset name.
+
+        Examples
+        --------
+        >>> from imgui_debugger import ConfigStore, StyleEditor, StyleEditorConfig
+        >>> editor = StyleEditor(StyleEditorConfig(store=ConfigStore("build/cfg")))
+        >>> editor.load_preset("night")           # doctest: +SKIP
+        """
+        store = self.config.store
+        if store is None:
+            return
+        data = store.read_preset(name)
+        if data is None:
+            self.status = f"no preset {name!r}"
+            return
+        store.set_active_preset(name)
+        self.status = f"loaded preset {name!r} ({apply_style_dict(data)} fields)"
+        self.mark_dirty()
+
+    def delete_preset(self, name: str) -> None:
+        """Remove a named preset from the store.
+
+        Parameters
+        ----------
+        name : str
+            The preset name.
+
+        Examples
+        --------
+        >>> from imgui_debugger import ConfigStore, StyleEditor, StyleEditorConfig
+        >>> editor = StyleEditor(StyleEditorConfig(store=ConfigStore("build/cfg")))
+        >>> editor.delete_preset("night")         # doctest: +SKIP
+        """
+        store = self.config.store
+        if store is None:
+            return
+        self.status = f"deleted {name!r}" if store.delete_preset(name) else f"no preset {name!r}"
+        if store.active_preset() == name:
+            store.set_active_preset(None)
+        self.refresh_presets()
+
+    def mark_dirty(self) -> None:
+        """Note that the style changed, starting the autosave countdown.
+
+        Examples
+        --------
+        >>> from imgui_debugger import StyleEditor
+        >>> editor = StyleEditor()
+        >>> editor.mark_dirty()
+        >>> editor.dirty
+        True
+        """
+        self._dirty_at = time.monotonic()
+
+    @property
+    def dirty(self) -> bool:
+        """Whether the style changed since the last save.
+
+        Examples
+        --------
+        >>> from imgui_debugger import StyleEditor
+        >>> StyleEditor().dirty
+        False
+        """
+        return self._dirty_at is not None
+
+    def flush_autosave(self, force: bool = False) -> bool:
+        """Write the style to the store once it has been quiet long enough.
+
+        Parameters
+        ----------
+        force : bool
+            Write now, whatever the countdown says.
+
+        Returns
+        -------
+        bool
+            True when something was written.
+
+        Examples
+        --------
+        >>> from imgui_debugger import StyleEditor
+        >>> StyleEditor().flush_autosave()
+        False
+        """
+        cfg = self.config
+        if cfg.store is None or not cfg.autosave or self._dirty_at is None:
+            return False
+        if not force and time.monotonic() - self._dirty_at < cfg.autosave_delay:
+            return False
+        self._dirty_at = None
+        return cfg.store.set_style(style_to_dict())
 
     def render(self) -> None:
         """Draw the toolbar and the Sizes / Colors / Rendering tabs inline.
@@ -463,15 +642,18 @@ class StyleEditor(Panel):
             ("Rendering", cfg.show_rendering, self.draw_rendering),
         ]
         shown = [(name, draw) for name, on, draw in tabs if on]
+        changed = False
         if len(shown) == 1:
-            shown[0][1]()
-            return
-        if shown and imgui.begin_tab_bar("##style_tabs"):
+            changed = shown[0][1]()
+        elif shown and imgui.begin_tab_bar("##style_tabs"):
             for name, draw in shown:
                 if imgui.begin_tab_item(name)[0]:
-                    draw()
+                    changed = draw() or changed
                     imgui.end_tab_item()
             imgui.end_tab_bar()
+        if changed:
+            self.mark_dirty()
+        self.flush_autosave()
 
     def draw_toolbar(self) -> None:
         """Draw Save, Load, optional Revert, the presets and the status line.
@@ -499,33 +681,69 @@ class StyleEditor(Panel):
                 if imgui.small_button(name):
                     apply(imgui.get_style())
                     self.status = f"applied {name} preset"
+                    self.mark_dirty()
+        if cfg.store is not None and cfg.show_preset_bar:
+            self.draw_preset_bar()
         if self.status:
             imgui.text_colored(to_vec4(cfg.theme.text_dim), self.status)
         imgui.separator()
 
-    def draw_sizes(self) -> None:
-        """Draw the grouped size sliders.
+    def draw_preset_bar(self) -> None:
+        """Draw the named-preset row: pick one, save the current style, delete.
+
+        Examples
+        --------
+        >>> from imgui_debugger import StyleEditor
+        >>> StyleEditor().draw_preset_bar()   # doctest: +SKIP
+        """
+        names = self.presets()
+        width = imgui.get_content_region_avail().x
+        items = ["(none)"] + names
+        active = self.config.store.active_preset()
+        current = items.index(active) if active in items else 0
+        imgui.set_next_item_width(width * 0.4)
+        changed, picked = imgui.combo("##preset", current, items)
+        if changed and picked > 0:
+            self.load_preset(items[picked])
+        imgui.same_line()
+        imgui.set_next_item_width(width * 0.25)
+        _, self.preset_name = imgui.input_text_with_hint(
+            "##preset_name", "preset name...", self.preset_name
+        )
+        imgui.same_line()
+        if imgui.button("Save as") and self.preset_name.strip():
+            self.save_preset(self.preset_name.strip())
+        imgui.same_line()
+        if imgui.button("Delete") and active:
+            self.delete_preset(active)
+
+    def draw_sizes(self) -> bool:
+        """Draw the grouped size sliders, returning whether one moved.
 
         Examples
         --------
         >>> from imgui_debugger import StyleEditor
         >>> StyleEditor().draw_sizes()        # doctest: +SKIP
+        False
         """
         style = imgui.get_style()
+        changed = False
         for group, fields in self.config.size_groups or SIZE_GROUPS:
             imgui.text_colored(to_vec4(self.theme.node), group)
             imgui.separator()
             for name, lo, hi in fields:
-                _draw_size_field(style, name, lo, hi)
+                changed = _draw_size_field(style, name, lo, hi) or changed
             imgui.spacing()
+        return changed
 
-    def draw_colors(self) -> None:
-        """Draw every style color with a filter box above them.
+    def draw_colors(self) -> bool:
+        """Draw every style color with a filter box; True when one changed.
 
         Examples
         --------
         >>> from imgui_debugger import StyleEditor
         >>> StyleEditor().draw_colors()       # doctest: +SKIP
+        False
         """
         style = imgui.get_style()
         imgui.set_next_item_width(-1)
@@ -534,6 +752,7 @@ class StyleEditor(Panel):
         )
         low = self.filter.lower()
         flags = imgui.ColorEditFlags_.alpha_bar | imgui.ColorEditFlags_.alpha_preview_half
+        any_changed = False
         for i in range(int(imgui.Col_.count)):
             name = imgui.get_style_color_name(i)
             if low and low not in name.lower():
@@ -542,28 +761,34 @@ class StyleEditor(Panel):
             changed, rgba = imgui.color_edit4(f"{name}##col{i}", [c.x, c.y, c.z, c.w], flags)
             if changed:
                 style.set_color_(i, imgui.ImVec4(*rgba))
+                any_changed = True
+        return any_changed
 
-    def draw_rendering(self) -> None:
+    def draw_rendering(self) -> bool:
         """Draw the anti-aliasing, tessellation and alpha controls.
 
         Examples
         --------
         >>> from imgui_debugger import StyleEditor
         >>> StyleEditor().draw_rendering()    # doctest: +SKIP
+        False
         """
         style = imgui.get_style()
+        changed = False
         for name, lo, hi in RENDER_FIELDS:
-            _draw_size_field(style, name, lo, hi)
+            changed = _draw_size_field(style, name, lo, hi) or changed
+        return changed
 
 
-def _draw_size_field(style, name: str, lo, hi) -> None:
-    """Draw one style field with the widget its current type calls for.
+def _draw_size_field(style, name: str, lo, hi) -> bool:
+    """Draw one style field with the widget its type calls for; True when it moved.
 
     Examples
     --------
     >>> from imgui_bundle import imgui
     >>> from imgui_debugger.style import _draw_size_field
     >>> _draw_size_field(imgui.get_style(), "frame_rounding", 0.0, 12.0)  # doctest: +SKIP
+    False
     """
     value = getattr(style, name)
     if name in ("window_menu_button_position", "color_button_position"):
@@ -571,23 +796,24 @@ def _draw_size_field(style, name: str, lo, hi) -> None:
         changed, picked = imgui.combo(name, current, list(DIR_ITEMS))
         if changed:
             setattr(style, name, picked - 1)
-        return
+        return changed
     if name == "table_angled_headers_angle":
         changed, out = imgui.slider_angle(name, float(value), lo, hi)
         if changed:
             setattr(style, name, out)
-        return
+        return changed
     if isinstance(value, imgui.ImVec2):
         fmt = "%.0f" if hi > 2.0 else "%.2f"
         changed, out = imgui.slider_float2(name, [value.x, value.y], lo, hi, fmt)
         if changed:
             setattr(style, name, imgui.ImVec2(*out))
-        return
+        return changed
     if isinstance(value, bool):
         changed, out = imgui.checkbox(name, value)
         if changed:
             setattr(style, name, out)
-        return
+        return changed
     changed, out = imgui.slider_float(name, float(value), lo, hi, "%.2f")
     if changed:
         setattr(style, name, out)
+    return changed

@@ -95,6 +95,15 @@ Three layers, in dependency order. Nothing below imports anything above it.
   so the config's title is only the menu label. `UserGuidePanel` is the one
   that can be inlined, because `show_user_guide()` draws no window of its own.
   `DemoPanel` exists but is not in `DebugTools.default()`.
+- `store.py` — `ConfigStore`, one directory holding `state.json` (the style as
+  last left, per-panel state, the active preset), `styles/<name>.json` (named
+  presets) and `layout.ini`. Every method is guarded and returns an empty
+  value or `False` rather than raising, because callers are inside a frame. The
+  root is created on the first write, never on construction, so building a
+  store costs nothing. Window geometry is deliberately not stored here: imgui
+  already persists it through the `.ini`, and a second mechanism would fight
+  it. The import of `style` is function-local, to keep `store` free of the
+  imgui-context-dependent code path.
 - `tools.py` — `DebugTools`, an ordered list of panels with `draw_menu`,
   `render`, and add/remove/lookup by title. It holds no drawing of its own; it
   is the one place a host app touches to get everything at once.
