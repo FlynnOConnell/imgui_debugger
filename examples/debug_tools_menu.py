@@ -19,8 +19,7 @@ from imgui_debugger import (
     UserGuidePanel,
 )
 
-# a host app points this at wherever it already keeps settings, e.g.
-# mbo_utilities uses get_mbo_dirs()["imgui"]
+# a host app points this at its own settings dir
 STORE = ConfigStore(Path.home() / ".my_app" / "imgui")
 
 
@@ -37,7 +36,7 @@ class App:
         )
         self.tools["Debugger"].config.hotkey = Hotkey(imgui.Key.f12)
         self.tools["Metrics / Debugger"].config.hotkey = Hotkey(imgui.Key.f11)
-        # the style editor on its own menu item, named and keyed our way
+        # the style editor on its own menu item
         self.tools.remove("Style Editor")
         self.tools.add(
             StyleEditor(
@@ -83,7 +82,7 @@ if __name__ == "__main__":
     params.app_window_params.window_title = "debug_tools_menu"
     params.app_window_params.window_geometry.size = (1100, 760)
     params.imgui_window_params.show_menu_bar = True
-    # window size and position are imgui's to persist; point it at the store
+    # window geometry is imgui's to persist
     params.ini_filename = STORE.layout_ini
     params.ini_folder_type = hello_imgui.IniFolderType.absolute_path
     params.callbacks.post_init = APP.post_init

@@ -75,8 +75,7 @@ class TracePlot:
         self._panels = tuple(panels)
         self._lines = {name: [] for name in self._panels}
         self._frames = np.arange(num_frames, dtype=np.float32)
-        # timings kept as given so frame lookups agree with a widget's own
-        # searchsorted mapping
+        # kept as given so frame lookups match a widget's own searchsorted
         self._timings = None
         self._time = None
         if frame_timings is not None and not np.array_equal(frame_timings, self._frames):
@@ -321,8 +320,7 @@ class TracePlot:
         """
         ref = self._timings if self._timings is not None else self._frames
         indices.add_event_handler(lambda current: self._follow(ref, current[dim]))
-        # cancel_awaiting: a drag only fetches the latest frame, like the
-        # widget's own slider
+        # cancel_awaiting: a drag fetches only the latest frame
         self.on_frame = lambda k: indices.set_dim_index(
             dim, float(ref[k]), cancel_awaiting=True
         )
@@ -379,8 +377,7 @@ class TracePlot:
             implot.create_context()
         fit = self._resolve_fit()
         io = imgui.get_io()
-        # qt on windows reports alt + wheel as a horizontal wheel, which implot
-        # ignores
+        # qt on windows reports alt + wheel as horizontal, which implot ignores
         if io.key_alt and io.mouse_wheel == 0.0 and io.mouse_wheel_h != 0.0:
             io.mouse_wheel, io.mouse_wheel_h = -io.mouse_wheel_h, 0.0
         height = max(imgui.get_content_region_avail().y - reserve, em(4))
@@ -485,19 +482,16 @@ class TracePlot:
         >>> from imgui_debugger import TracePlot
         >>> TracePlot(["raw"], 10)._draw_trace(...)    # doctest: +SKIP
         """
-        # only the samples currently on screen matter, so zooming in re-bins and
-        # eventually plots raw
+        # only on-screen samples matter, so zooming in re-bins then plots raw
         lo = int(np.searchsorted(xs, span[0], "left"))
         hi = int(np.searchsorted(xs, span[1], "right"))
         visible = hi - lo
         if not self._decimate or columns < 2 or visible <= 2 * columns:
-            # one sample of margin each side keeps the line joined to its
-            # off-screen neighbours
+            # a sample of margin keeps the line joined to its neighbours
             a, b = max(lo - 1, 0), min(hi + 1, len(xs))
             implot.plot_line(label, xs[a:b], trace[a:b], self._spec(rgb))
             return
-        # one bin per pixel column: drawing more points than that packs each
-        # column with vertical strokes
+        # one bin per pixel column; more points just pack vertical strokes
         window = trace[lo:hi]
         edges = np.linspace(0, visible, columns + 1).astype(np.int64)
         starts = edges[:-1]
@@ -507,8 +501,7 @@ class TracePlot:
         means = np.add.reduceat(window, starts) / counts
         centers = starts + counts.astype(np.int64) // 2
         x = np.ascontiguousarray(xs[lo:hi][centers], np.float32)
-        # same label for both, so the legend keeps one entry and they toggle
-        # together
+        # same label for both, so the legend keeps one entry
         implot.plot_shaded(label, x, highs, lows, self._spec(rgb, fill=True, alpha=0.35))
         implot.plot_line(
             label, x, np.ascontiguousarray(means, np.float32), self._spec(rgb)
@@ -607,8 +600,7 @@ class TracePlot:
             y_flags = implot.AxisFlags_.lock if io.key_shift else implot.AxisFlags_.none
             x_label = ("time" if self._use_time else "frame") if last else ""
             implot.setup_axes(x_label, name, x_flags, y_flags)
-            # above the plot, so a panel with a legend keeps the same width as
-            # the others
+            # above the plot, so a legend does not narrow the panel
             implot.setup_legend(
                 implot.Location_.north,
                 implot.LegendFlags_.outside | implot.LegendFlags_.horizontal,
@@ -631,9 +623,7 @@ class TracePlot:
             self._draw_marks(xs)
             if implot.is_plot_hovered():
                 if imgui.is_mouse_double_clicked(0):
-                    # implot just fit this plot to its lines, which collapses the
-                    # linked x axis to half a frame when it holds none; refit
-                    # every panel to the frame range instead
+                    # implot's own fit collapses an empty linked x axis
                     self._force_fit = True
                     if self.on_pick is not None and lines:
                         self.on_pick(name, self._nearest_line(lines, xs))

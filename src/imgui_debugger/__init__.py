@@ -100,13 +100,11 @@ from .widgets import (
 __version__ = "0.2.0"
 
 __all__ = [
-    # panels
     "Panel",
     "PanelConfig",
     "Hotkey",
     "DebugTools",
     "ConfigStore",
-    # widget + harness
     "Debugger",
     "DebuggerConfig",
     "attach",
@@ -116,7 +114,6 @@ __all__ = [
     "ensure_assets",
     "data_dir",
     "default_ini_path",
-    # scopes
     "Scope",
     "Child",
     "Watch",
@@ -127,7 +124,6 @@ __all__ = [
     "object_scopes",
     "frame_scopes",
     "runtime_scope",
-    # rendering
     "TreeStyle",
     "draw_scope",
     "draw_child",
@@ -136,10 +132,8 @@ __all__ = [
     "edit_value",
     "fmt_value",
     "type_label",
-    # search
     "matches",
     "clear_cache",
-    # style editor
     "StyleEditor",
     "StyleEditorConfig",
     "style_to_dict",
@@ -147,7 +141,6 @@ __all__ = [
     "save_style",
     "load_style",
     "default_style_path",
-    # imgui's own debug windows
     "MetricsPanel",
     "DebugLogPanel",
     "IdStackPanel",
@@ -156,7 +149,6 @@ __all__ = [
     "UserGuidePanel",
     "NativeWindowPanel",
     "NativePanelConfig",
-    # ported widgets
     "RoiOrder",
     "RowAction",
     "draw_table",
@@ -172,7 +164,6 @@ __all__ = [
     "KeybindsConfig",
     "draw_keybinds_popup",
     "draw_path_popup",
-    # layout helpers
     "em",
     "card",
     "section",
@@ -183,9 +174,7 @@ __all__ = [
     "button_colors",
     "Grid",
     "grid",
-    # theme
     "Theme",
     "to_vec4",
-    # meta
     "__version__",
 ]

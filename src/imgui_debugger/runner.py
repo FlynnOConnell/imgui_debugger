@@ -69,8 +69,7 @@ def run_debugger(
         params.app_window_params.window_geometry.size = tuple(cfg.window_size)
         params.app_window_params.window_geometry.size_auto = False
     params.app_window_params.resizable = cfg.resizable
-    # hello_imgui resolves ini_filename against the cwd by default, which drops
-    # a layout file wherever the app was launched; pin it to an absolute path.
+    # hello_imgui resolves a relative ini against the cwd; pin it absolute
     if not params.ini_filename:
         ini = cfg.ini_path or default_ini_path()
         params.ini_filename = ini

@@ -453,7 +453,7 @@ def draw_table(
     if not imgui.begin_table(table_id, n_columns, flags, imgui.ImVec2(0, avail.y)):
         return scroll_to_current
     imgui.table_setup_scroll_freeze(0, 1)
-    # the current sort seeds imgui's default, so it survives a change of columns
+    # seeding imgui's default sort keeps it across a change of columns
     descending = 0 if order.ascending else imgui.TableColumnFlags_.prefer_sort_descending
     imgui.table_setup_column(
         column_names[0],

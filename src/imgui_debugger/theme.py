@@ -59,7 +59,6 @@ class Theme:
     border: Color = (0.35, 0.35, 0.37, 0.7)
     separator: Color = (0.35, 0.35, 0.37, 0.6)
     frame_bg: Color = (0.18, 0.18, 0.20, 1.0)
-    # tree roles
     node: Color = (0.40, 0.80, 0.95, 1.0)
     name: Color = (0.95, 0.80, 0.30, 1.0)
     index: Color = (0.60, 0.95, 0.40, 1.0)
@@ -71,7 +70,6 @@ class Theme:
     runtime: Color = (0.90, 0.60, 0.40, 1.0)
     error: Color = (0.95, 0.40, 0.40, 1.0)
     changed: Color = (1.00, 0.85, 0.35, 1.0)
-    # panel roles, shared with the ported widgets
     ok: Color = (0.40, 0.90, 0.40, 1.0)
     warn: Color = (1.00, 0.80, 0.20, 1.0)
     code: Color = (0.55, 0.75, 1.00, 1.0)

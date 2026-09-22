@@ -60,8 +60,7 @@ class RoiEdgeWindow(EdgeWindow):
         imgui.end_child()
         section("Trace")
         self.plot.draw()
-        # capture here so the tree's locals scope follows this method;
-        # render_window polls the hotkey, so F12 reopens it when closed
+        # capture here so the locals scope follows this method
         self.debugger.capture()
         self.debugger.render_window()
 

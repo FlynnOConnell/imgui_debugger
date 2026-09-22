@@ -29,8 +29,7 @@ from .panel import Panel, PanelConfig
 from .store import ConfigStore
 from .theme import to_vec4
 
-# derived from the DPI and the font atlas at runtime; restoring them from a file
-# written on another machine resizes every font for the wrong screen
+# dpi-derived; another machine's values resize every font for the wrong screen
 SKIP_KEYS = ("font_scale_dpi", "font_size_base")
 
 DIR_ITEMS = ("none", "left", "right", "up", "down")
@@ -790,8 +789,7 @@ def _draw_size_field(style, name: str, lo, hi) -> bool:
     >>> _draw_size_field(imgui.get_style(), "frame_rounding", 0.0, 12.0)  # doctest: +SKIP
     False
     """
-    # SIZE_GROUPS and RENDER_FIELDS are written against the newest imgui; a
-    # field an older imgui-bundle does not have is skipped, not an AttributeError
+    # the field lists target the newest imgui; an older one lacks some
     if not hasattr(style, name):
         return False
     value = getattr(style, name)
