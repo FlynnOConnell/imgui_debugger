@@ -86,3 +86,17 @@ def test_visibility_toggles():
     assert editor.visible
     editor.toggle()
     assert not editor.visible
+
+
+def test_unknown_field_is_skipped_not_raised(imgui_context):
+    from imgui_debugger.style import _draw_size_field
+
+    assert _draw_size_field(imgui.get_style(), "no_such_style_field", 0.0, 1.0) is False
+
+
+def test_every_listed_size_field_is_optional():
+    from imgui_debugger.style import RENDER_FIELDS, SIZE_GROUPS
+
+    listed = [name for _, fields in SIZE_GROUPS for name, _, _ in fields]
+    listed += [name for name, _, _ in RENDER_FIELDS]
+    assert len(listed) == len(set(listed))

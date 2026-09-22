@@ -790,6 +790,10 @@ def _draw_size_field(style, name: str, lo, hi) -> bool:
     >>> _draw_size_field(imgui.get_style(), "frame_rounding", 0.0, 12.0)  # doctest: +SKIP
     False
     """
+    # SIZE_GROUPS and RENDER_FIELDS are written against the newest imgui; a
+    # field an older imgui-bundle does not have is skipped, not an AttributeError
+    if not hasattr(style, name):
+        return False
     value = getattr(style, name)
     if name in ("window_menu_button_position", "color_button_position"):
         current = int(value) + 1 if int(value) >= 0 else 0
